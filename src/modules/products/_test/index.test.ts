@@ -6,11 +6,32 @@ const url = `${process.env.APP_URL}/products`;
 
 describe('products/index Controller', () => {
   it('returns a response', async () => {
-    console.log(url);
+    const response = await testApp.handle(
+      new Request(url, {
+        method: 'GET',
+      })
+    );
 
-    // const data = await response.json();
-    // expect(data).toHaveProperty('data');
-    // expect(Array.isArray(data.data)).toBe(true);
-    // expect(data.data.length).toBeGreaterThan(0);
+    expect(response.status).toBe(200);
+
+    const responseBody = await response.json();
+    expect(responseBody).toHaveProperty('data');
+    expect(Array.isArray(responseBody.data)).toBe(true);
+    expect(responseBody).toEqual({
+      data: [
+        {
+          id: expect.any(String),
+          name: 'Product 1',
+          price: 10.99,
+          description: 'This is product 1',
+        },
+        {
+          id: expect.any(String),
+          name: 'Product 2',
+          price: 19.99,
+          description: 'This is product 2',
+        },
+      ],
+    });
   });
 });
