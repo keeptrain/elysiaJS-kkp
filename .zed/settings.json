@@ -1,0 +1,39 @@
+{
+  // Format otomatis saat save / autosave
+  "format_on_save": "on",
+  "formatter": "auto",
+
+  // Pastikan Prettier diizinkan (global kamu sudah true, ini override project)
+  "prettier": {
+    "allowed": true,
+  },
+
+  // Atur formatter per bahasa ke Prettier
+  "languages": {
+    "TypeScript": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+      "tab_size": 2,
+    },
+    "TSX": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+    },
+    "JavaScript": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+    },
+    "JSON": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+    },
+    "JSONC": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+    },
+    "Markdown": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+    },
+  },
+}
