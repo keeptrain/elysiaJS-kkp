@@ -6,7 +6,8 @@ const limiter = new InMemoryRateLimiter(60000, 1); // 1 request per minute
 export const publicMiddleware = new Elysia({ name: 'public-middleware' })
   .onBeforeHandle({ as: 'global' }, ({ request, server, headers }) => {
     // server.requestIP paling akurat di Bun, fallback ke x-forwarded-for (ambil IP pertama)
-    const forwarded = headers['x-forwarded-for'] || request.headers.get('x-forwarded-for');
+    const forwarded =
+      headers['x-forwarded-for'] || request.headers.get('x-forwarded-for');
     const ip =
       (server as any)?.requestIP?.(request)?.address ||
       forwarded?.split(',')[0]?.trim() ||
