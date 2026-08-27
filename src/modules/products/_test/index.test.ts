@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'bun:test';
 import { testApp } from '../../..';
 
-const url = `${process.env.APP_URL ?? 'http://localhost:3000'}/products`;
+const url = `${process.env.APP_URL}/products`;
 
 describe('products/index Controller', () => {
   it('returns a response', async () => {
