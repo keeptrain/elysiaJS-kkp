@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 
-import { loginApp } from '../src/auth/login/index';
-import { changePasswordApp } from '../src/auth/change-password/index';
+import { loginApp } from './modules/auth/login/index';
+import { changePasswordApp } from './modules/auth/change-password/index';
 import { publicMiddleware } from './middleware/public-middleware';
 import { authMiddleware } from './middleware/auth-middleware';
 
