@@ -6,7 +6,7 @@ const url = `http://localhost:3000${loginRoute}`;
 
 describe('auth/login/index Controller', () => {
   describe('success', () => {
-    it('returns a response', async () => {
+    it('returns a correct response , result', async () => {
       const response = await loginApp.handle(
         new Request(url, {
           method: 'POST',
@@ -19,7 +19,10 @@ describe('auth/login/index Controller', () => {
 
       const responseBody = await response.json();
       expect(responseBody).toEqual({
-        message: 'Login successful for email: test@gmail.com',
+        data: {
+          email: 'test@gmail.com',
+        },
+        message: 'Login berhasil, silakan cek email Anda untuk kode OTP.',
       });
     });
   });

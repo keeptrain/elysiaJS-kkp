@@ -12,7 +12,10 @@ export const loginApp = new Elysia().post(
     await LoginService.login(email);
 
     return {
-      message: `Login successful for email: ${email}`,
+      data: {
+        email,
+      },
+      message: 'Login berhasil, silakan cek email Anda untuk kode OTP.',
     };
   },
   {

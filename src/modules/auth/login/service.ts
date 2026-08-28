@@ -1,6 +1,9 @@
 import { randomUUIDv7 } from 'bun';
-import { tursoDb } from '../../../lib/turso-db';
+import { db, tursoDb } from '../../../lib/turso-db';
 import { resendMailer } from '../../../lib/resend-mailer';
+import { otpsTable } from '../../../db/schema';
+import { generateRandomCode } from '../../../utils/utils';
+import { sql } from 'drizzle-orm';
 
 export abstract class LoginService {
   private static userRepository: UserRepository;
@@ -10,8 +13,29 @@ export abstract class LoginService {
     return true;
   }
 
-  private static async sendingOtp(email: string) {
-    await resendMailer(email);
+  private static async clearOtps(email: string): Promise<void> {
+    await db
+      .update(otpsTable)
+      .set({ isUsed: 1 })
+      .where(sql`email = ${email}`);
+  }
+
+  private static async sendingOtp(email: string): Promise<boolean> {
+    // Clear any existing OTPs for the email before sending a new one
+    await this.clearOtps(email);
+
+    const expires = await db
+      .insert(otpsTable)
+      .values({
+        email,
+        code: generateRandomCode().toString(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // expires in 5 minutes
+      })
+      .returning({ code: otpsTable.code });
+
+    await resendMailer(email, Number(expires));
+
+    return true;
   }
 
   static async login(email: string): Promise<boolean> {
