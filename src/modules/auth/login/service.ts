@@ -24,7 +24,8 @@ export abstract class LoginService {
     // Clear any existing OTPs for the email before sending a new one
     await this.clearOtps(email);
 
-    const expires = await db
+    const code = generateRandomCode().toString();
+    const [inserted] = await db
       .insert(otpsTable)
       .values({
         email,
@@ -33,7 +34,9 @@ export abstract class LoginService {
       })
       .returning({ code: otpsTable.code });
 
-    await resendMailer(email, Number(expires));
+    // inserted.code should equal code, fallback to generated code
+    const otpCode = inserted?.code ?? code;
+    await resendMailer(email, Number(otpCode));
 
     return true;
   }

@@ -4,8 +4,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
-    "migrate": "bun run src/lib/migrate.ts",
-    "migrate:generate": "bun -e \"const n=new Date().toISOString().slice(0,19).replace(/[-:T]/g,''); console.log('create database/migrations/'+n+'_name.sql')\"",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\""
   },
