@@ -11,18 +11,16 @@ describe('auth/login/index Controller', () => {
         new Request(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'test1@gmail.com' }),
+          body: JSON.stringify({ email: 'test@gmail.com' }),
         })
       );
 
-      // expect(response.status).toBe(200);
+      expect(response.status).toBe(200);
 
       const responseBody = await response.json();
-      console.log(responseBody);
-
-      // expect(responseBody).toEqual({
-      //   message: 'Login successful for email: test@gmail.com',
-      // });
+      expect(responseBody).toEqual({
+        message: 'Login successful for email: test@gmail.com',
+      });
     });
   });
 
