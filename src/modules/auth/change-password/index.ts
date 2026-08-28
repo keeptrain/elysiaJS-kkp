@@ -1,8 +1,8 @@
-import Elysia, { t } from 'elysia';
+import { Elysia } from 'elysia';
+import { authMiddleware } from '../../../middleware/auth-middleware';
 
-export const changePasswordRoute = '/auth/change-password' as const;
+export const changePasswordRoute = '/change-password' as const;
 
-export const changePasswordApp = new Elysia().get(
-  changePasswordRoute,
-  () => 'asdas'
-);
+export const changePasswordApp = new Elysia()
+  .use(authMiddleware)
+  .post(changePasswordRoute, ({ userId }) => userId);
