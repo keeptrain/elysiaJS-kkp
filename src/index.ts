@@ -4,7 +4,7 @@ import { loginApp } from './modules/auth/login/index';
 import { productsApp } from './modules/products';
 import { publicMiddleware } from './middleware/public-middleware';
 
-const isProduction = process.env.NODE_ENV === 'production';
+export const isProduction = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT ?? 3000);
 
 const publicRoutes = new Elysia()
