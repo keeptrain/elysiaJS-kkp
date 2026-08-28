@@ -14,7 +14,10 @@ export class InMemoryRateLimiter {
     this.cleanupTimer = setInterval(() => this.cleanup(), 60000);
     // jangan block process exit di test / bun
     // @ts-ignore - Bun/Node Timer has unref
-    if (this.cleanupTimer && typeof (this.cleanupTimer as any).unref === 'function') {
+    if (
+      this.cleanupTimer &&
+      typeof (this.cleanupTimer as any).unref === 'function'
+    ) {
       (this.cleanupTimer as any).unref();
     }
   }
