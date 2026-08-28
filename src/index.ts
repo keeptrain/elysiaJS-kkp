@@ -1,7 +1,6 @@
 import { Elysia } from 'elysia';
 
 import { loginApp } from './modules/auth/login/index';
-import { changePasswordApp } from './modules/auth/change-password/index';
 import { productsApp } from './modules/products';
 import { publicMiddleware } from './middleware/public-middleware';
 
@@ -13,7 +12,7 @@ const publicRoutes = new Elysia()
   .use(productsApp)
   .use(loginApp);
 
-const protectedRoutes = new Elysia().use(changePasswordApp);
+const protectedRoutes = new Elysia();
 
 export const app = new Elysia().use(publicRoutes).use(protectedRoutes);
 
