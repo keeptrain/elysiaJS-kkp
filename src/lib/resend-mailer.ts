@@ -2,6 +2,9 @@ import { CreateEmailOptions, Resend } from 'resend';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Top-level singleton — 1x alokasi, reuse di production (selalu dipakai)
+const resend = new Resend(process.env.RESEND_API_KEY ?? 're_development_dummy');
+
 export const resendMailer = async (email: string): Promise<boolean> => {
   const template = ResendMailerTemplate.sendOtp(email);
 
@@ -10,13 +13,11 @@ export const resendMailer = async (email: string): Promise<boolean> => {
     return true;
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  if (!process.env.RESEND_API_KEY) {
     console.warn('[mailer] RESEND_API_KEY missing in production');
     return false;
   }
 
-  const resend = new Resend(apiKey);
   await resend.emails.send(template);
 
   return true;
