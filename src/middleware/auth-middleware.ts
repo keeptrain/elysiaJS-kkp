@@ -1,19 +1,28 @@
-import { Elysia, status } from 'elysia';
+import { Elysia, status, t } from 'elysia';
 
-export const authMiddleware = new Elysia().onBeforeHandle(({ headers }) => {
-  const authHeader = headers['authorization'];
+export const cookieSchema = {
+  cookie: t.Object({
+    session: t.String({
+      minLength: 16,
+      maxLength: 16,
+      error: 'Invalid session cookie',
+    }),
+  }),
+};
 
-  // Jika tidak ada header atau format salah
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return status(401, { message: 'Unauthorized: Token tidak ditemukan' });
-  }
+export const authMiddleware = new Elysia()
+  .guard({
+    as: 'scoped',
+    cookie: cookieSchema.cookie,
+  })
+  .resolve({ as: 'scoped' }, ({ cookie: { session } }) => {
+    // check cookie session in redis or database
+    const a16 = 'a'.repeat(16);
+    if (session.value !== a16) {
+      return status(401, { message: 'Unauthorized' });
+    }
 
-  const token = authHeader.split(' ')[1];
-
-  // Contoh validasi token sederhana
-  if (token !== 'token-rahasia-saya') {
-    return status(401, { message: 'Unauthorized: Token tidak valid' });
-  }
-
-  // Jika lolos, biarkan request lanjut ke handler berikutnya
-});
+    return {
+      userId: a16,
+    };
+  });
