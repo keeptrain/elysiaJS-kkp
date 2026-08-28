@@ -1,12 +1,12 @@
 // test/index.test.ts
 import { describe, expect, it } from 'bun:test';
-import { testApp } from '../../..';
+import { app } from '../../..';
 
 const url = `${process.env.APP_URL}/products`;
 
 describe('products/index Controller', () => {
   it('returns a response', async () => {
-    const response = await testApp.handle(
+    const response = await app.handle(
       new Request(url, {
         method: 'GET',
       })

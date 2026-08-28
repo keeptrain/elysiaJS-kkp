@@ -6,7 +6,7 @@ export const loginRoute = '/login' as const;
 
 export const loginApp = new Elysia().post(
   loginRoute,
-  async ({ body, server }) => {
+  async ({ body }) => {
     const { email } = body;
 
     const isLoginSuccessful = await LoginService.login(email);
