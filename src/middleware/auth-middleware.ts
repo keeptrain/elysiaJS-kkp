@@ -1,11 +1,15 @@
 import { Elysia, status, t } from 'elysia';
+import { db } from '../lib/turso-db';
+import { sessionsTable } from '../db/schema';
+import { sql } from 'drizzle-orm';
 
 export const cookieSchema = {
   cookie: t.Object({
     session: t.String({
-      minLength: 16,
-      maxLength: 16,
-      error: 'Invalid session cookie',
+      minLength: 32,
+      maxLength: 32,
+      pattern: '^[a-zA-Z0-9]{32}$',
+      error: 'Unauthorized: Invalid or expired session',
     }),
   }),
 };
@@ -15,14 +19,27 @@ export const authMiddleware = new Elysia()
     as: 'scoped',
     cookie: cookieSchema.cookie,
   })
-  .resolve({ as: 'scoped' }, ({ cookie: { session } }) => {
-    // check cookie session in redis or database
-    const a16 = 'a'.repeat(16);
-    if (session.value !== a16) {
-      return status(401, { message: 'Unauthorized' });
+  .resolve({ as: 'scoped' }, async ({ cookie }) => {
+    // check are session is expired
+    const [session] = await db
+      .select({
+        userId: sessionsTable.userId,
+        token: sessionsTable.token,
+        expiresAt: sessionsTable.expiresAt,
+      })
+      .from(sessionsTable)
+      .where(sql`token = ${cookie.session.value}`)
+      .limit(1);
+
+    if (!session) {
+      return status(401, 'Unauthorized: Invalid or expired session');
+    }
+
+    if (new Date(session.expiresAt).getTime() < Date.now()) {
+      return status(401, 'Unauthorized: Invalid or expired session');
     }
 
     return {
-      userId: a16,
+      userId: session.userId,
     };
   });

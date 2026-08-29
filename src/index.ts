@@ -4,6 +4,7 @@ import { isProduction, env } from './utils/env';
 import { loginApp } from './modules/auth/login/index';
 import { productsApp } from './modules/products';
 import { publicMiddleware } from './middleware/public-middleware';
+import { authMiddleware } from './middleware/auth-middleware';
 
 const PORT = env.PORT;
 
@@ -12,7 +13,7 @@ const publicRoutes = new Elysia()
   .use(productsApp)
   .use(loginApp);
 
-const protectedRoutes = new Elysia();
+export const protectedRoutes = new Elysia().use(authMiddleware);
 
 export const app = new Elysia().use(publicRoutes).use(protectedRoutes);
 
