@@ -16,6 +16,7 @@
   "devDependencies": {
     "bun-types": "latest",
     "drizzle-kit": "^1.0.0-rc.4",
+    "drizzle-seed": "^0.3.1",
     "prettier": "^3.9.6"
   },
   "module": "src/index.js"

@@ -1,16 +1,62 @@
 import { randomUUIDv7 } from 'bun';
 import { db, tursoDb } from '../../../lib/turso-db';
 import { resendMailer } from '../../../lib/resend-mailer';
-import { otpsTable } from '../../../db/schema';
+import { otpsTable, sessionsTable, usersTable } from '../../../db/schema';
 import { generateRandomCode } from '../../../utils/utils';
 import { sql } from 'drizzle-orm';
 
 export abstract class LoginService {
-  private static userRepository: UserRepository;
+  static async createSession(
+    email: string
+  ): Promise<{ token: string; expiresAt: string }> {
+    const userId = await this.checkUser(email);
 
-  private static async verifyOtp(email: string): Promise<boolean> {
-    if (email !== 'test@gmail.com') return false;
-    return true;
+    const [session] = await db
+      .insert(sessionsTable)
+      .values({
+        userId,
+        token: 'as',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // expires in 24 hours
+      })
+      .returning({
+        token: sessionsTable.token,
+        expiresAt: sessionsTable.expiresAt,
+      });
+
+    return {
+      token: session.token,
+      expiresAt: session.expiresAt,
+    };
+  }
+
+  // Check if the user exists, if not create a new user and return the user id
+  private static async checkUser(email: string): Promise<string> {
+    const [user] = await db
+      .select({ id: usersTable.id, email: usersTable.email })
+      .from(usersTable)
+      .where(sql`email = ${email}`)
+      .limit(1);
+
+    return (
+      user?.id ??
+      (await db
+        .insert(usersTable)
+        .values({ id: randomUUIDv7(), email })
+        .returning({ id: usersTable.id })
+        .then(([u]) => u.id))
+    );
+  }
+
+  static async verifyOtp(email: string, otp: string): Promise<boolean> {
+    const result = await db
+      .select({ email: otpsTable.email })
+      .from(otpsTable)
+      .where(
+        sql`email = ${email} AND code = ${otp} AND isUsed = 0 AND expiresAt > CURRENT_TIMESTAMP`
+      )
+      .limit(1);
+
+    return result.length > 0;
   }
 
   private static async clearOtps(email: string): Promise<void> {
@@ -20,7 +66,7 @@ export abstract class LoginService {
       .where(sql`email = ${email}`);
   }
 
-  private static async sendingOtp(email: string): Promise<boolean> {
+  static async sendingOtp(email: string): Promise<boolean> {
     // Clear any existing OTPs for the email before sending a new one
     await this.clearOtps(email);
 
@@ -29,20 +75,13 @@ export abstract class LoginService {
       .insert(otpsTable)
       .values({
         email,
-        code: generateRandomCode().toString(),
+        code,
         expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // expires in 5 minutes
       })
       .returning({ code: otpsTable.code });
 
-    // inserted.code should equal code, fallback to generated code
     const otpCode = inserted?.code ?? code;
     await resendMailer(email, Number(otpCode));
-
-    return true;
-  }
-
-  static async login(email: string): Promise<boolean> {
-    await this.sendingOtp(email);
 
     return true;
   }
