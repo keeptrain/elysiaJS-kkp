@@ -1,10 +1,13 @@
 // test/index.test.ts
 import { readdir } from 'node:fs/promises';
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import { loginApp, loginRoute } from '../index';
 import { db } from '../../../../lib/turso-db';
 import { otpsTable, sessionsTable, usersTable } from '../../../../db/schema';
 import { sql } from 'drizzle-orm';
+import { Glob } from 'bun';
+import { expectCookieValid, getCookie } from './utils.';
+import { todo } from 'node:test';
 
 beforeEach(async () => {
   await db.delete(otpsTable);
@@ -12,15 +15,15 @@ beforeEach(async () => {
   await db.delete(usersTable);
 });
 
-async function getLastOtpMail(email: string) {
-  const otpDir = 'src/modules/auth/login/_test/otp-mail';
-  const files = (await readdir(otpDir)).filter((f) => f.includes(email));
-  if (files.length === 0) return null;
-  const lastFile = files.sort().at(-1)!;
-  const html = await Bun.file(`${otpDir}/${lastFile}`).text();
-  const match = html.match(/<strong>(\d{6})<\/strong>/);
-  return { html, code: match?.[1] ?? null, file: lastFile };
-}
+afterAll(async () => {
+  // Clean up OTP mail files after tests
+  const glob = new Glob('*.html');
+
+  // Delete all files in the otp-mail directory
+  for (const file of glob.scanSync('src/modules/auth/login/_test/otp-mail')) {
+    await Bun.file(`src/modules/auth/login/_test/otp-mail/${file}`).delete();
+  }
+});
 
 const url = `http://localhost:3000${loginRoute}`;
 
@@ -66,6 +69,11 @@ describe('auth/login/index Controller', () => {
       expect(verifyRes.status).toBe(200);
       expect(await db.$count(usersTable)).toBe(1); // still 1 user
       expect(await db.$count(sessionsTable)).toBe(1); // new session created
+
+      // check session cookie and database entry
+      const sessionCookie = await getCookie(verifyRes.headers, 'session');
+      await expectCookieValid(sessionCookie!);
+      await expectSessionInDb(sessionCookie!);
     });
 
     it('user login with correct otp and create user if not exists', async () => {
@@ -108,27 +116,10 @@ describe('auth/login/index Controller', () => {
         message: 'Login successful, OTP verified.',
       });
 
-      const sessionCookie = verifyRes.headers.get('set-cookie');
-      expect(sessionCookie).toMatch(/session=/);
-
-      // pastikan session di db sesuai cookie, length 32 dan expires sesuai
-      const cookieToken = sessionCookie!.match(/session=([^;]+)/)?.[1];
-      expect(cookieToken).toBeDefined();
-      expect(cookieToken!.length).toBe(32);
-
-      const dbSession = await db
-        .select()
-        .from(sessionsTable)
-        .where(sql`token = ${cookieToken}`);
-      expect(dbSession.length).toBe(1);
-      expect(dbSession[0].token).toBe(cookieToken);
-      expect(dbSession[0].token.length).toBe(32);
-      const expiresAt = new Date(dbSession[0].expiresAt);
-      expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
-      // expires ~24 jam (86400s) toleransi 5 menit
-      const diffMs = expiresAt.getTime() - Date.now();
-      expect(diffMs).toBeGreaterThan(23 * 60 * 60 * 1000);
-      expect(diffMs).toBeLessThan(25 * 60 * 60 * 1000);
+      // check session cookie and database entry
+      const sessionCookie = await getCookie(verifyRes.headers, 'session');
+      await expectCookieValid(sessionCookie!);
+      await expectSessionInDb(sessionCookie!);
     });
 
     it('user login without creating user when first time login and otp sending', async () => {
@@ -160,6 +151,12 @@ describe('auth/login/index Controller', () => {
       expect(otpMail).not.toBeNull();
       expect(otpMail!.html).toContain('This code will expire in 5 minutes');
     });
+  });
+
+  describe('error', () => {
+    todo('when otp is invalid');
+    todo('when otp is expired');
+    todo('when otp is used');
   });
 
   describe('validation', () => {
@@ -268,3 +265,42 @@ describe('auth/login/index Controller', () => {
     });
   });
 });
+
+async function getLastOtpMail(email: string) {
+  const otpDir = 'src/modules/auth/login/_test/otp-mail';
+  const files = (await readdir(otpDir)).filter((f) => f.includes(email));
+  if (files.length === 0) return null;
+  const lastFile = files.sort().at(-1)!;
+  const html = await Bun.file(`${otpDir}/${lastFile}`).text();
+  const match = html.match(/<strong>(\d{6})<\/strong>/);
+  return { html, code: match?.[1] ?? null, file: lastFile };
+}
+
+/**
+ * Expect the session with the given token to exist in the database.
+ * @param token
+ * @param expiredAt Max age in seconds
+ */
+async function expectSessionInDb(sessionCookie: {
+  value: string;
+  maxAge: number;
+}) {
+  const sessionInDb = await db
+    .select()
+    .from(sessionsTable)
+    .where(sql`token = ${sessionCookie.value}`)
+    .limit(1);
+
+  const session = sessionInDb[0];
+  expect(sessionInDb.length).toBe(1);
+  expect(session.token).toEqual(sessionCookie.value);
+
+  const expiresAt = new Date(session.expiresAt).getTime();
+  const now = Date.now();
+  const maxAgeInMs = sessionCookie.maxAge * 1000;
+
+  // Check that the expiresAt in the database is within a reasonable range of the maxAge from the cookie
+  expect(expiresAt).toBeGreaterThanOrEqual(now);
+  expect(expiresAt).toBeLessThanOrEqual(now + maxAgeInMs + 1000); // Allow 1 second margin
+  expect(expiresAt).toBeGreaterThan(now);
+}
