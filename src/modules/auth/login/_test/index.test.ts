@@ -6,8 +6,7 @@ import { db } from '../../../../lib/turso-db';
 import { otpsTable, sessionsTable, usersTable } from '../../../../db/schema';
 import { sql } from 'drizzle-orm';
 import { Glob } from 'bun';
-import { expectCookieValid, getCookie } from './utils.';
-import { todo } from 'node:test';
+import { expectCookieValid, getCookie } from './utils';
 
 beforeEach(async () => {
   await db.delete(otpsTable);
@@ -154,9 +153,94 @@ describe('auth/login/index Controller', () => {
   });
 
   describe('error', () => {
-    todo('when otp is invalid');
-    todo('when otp is expired');
-    todo('when otp is used');
+    it('when otp is invalid', async () => {
+      await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'wrongotp@gmail.com' }),
+        })
+      );
+      const wrongOtp = '000000';
+      const res = await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'wrongotp@gmail.com', otp: wrongOtp }),
+        })
+      );
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.message).toBe('OTP tidak valid atau sudah kadaluarsa.');
+    });
+
+    it('when otp is expired', async () => {
+      const email = 'expired@gmail.com';
+      await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        })
+      );
+      const otpMail = await getLastOtpMail(email);
+      const code = otpMail!.code!;
+      // expire the otp
+      await db
+        .update(otpsTable)
+        .set({ expiresAt: new Date(Date.now() - 60 * 1000).toISOString() })
+        .where(sql`email = ${email} AND code = ${code}`);
+
+      const res = await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp: code }),
+        })
+      );
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.message).toBe('OTP tidak valid atau sudah kadaluarsa.');
+    });
+
+    it('when otp is used', async () => {
+      const email = 'used@gmail.com';
+      await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        })
+      );
+      const otpMail = await getLastOtpMail(email);
+      const code = otpMail!.code!;
+      // first use - success
+      const firstRes = await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp: code }),
+        })
+      );
+      expect(firstRes.status).toBe(200);
+      // mark as used
+      await db
+        .update(otpsTable)
+        .set({ isUsed: 1 })
+        .where(sql`email = ${email} AND code = ${code}`);
+
+      // second use - should fail
+      const secondRes = await loginApp.handle(
+        new Request(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp: code }),
+        })
+      );
+      expect(secondRes.status).toBe(401);
+      const body = await secondRes.json();
+      expect(body.message).toBe('OTP tidak valid atau sudah kadaluarsa.');
+    });
   });
 
   describe('validation', () => {

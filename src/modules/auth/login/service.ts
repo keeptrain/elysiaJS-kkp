@@ -50,15 +50,14 @@ export abstract class LoginService {
   }
 
   static async verifyOtp(email: string, otp: string): Promise<boolean> {
-    const result = await db
-      .select({ email: otpsTable.email })
+    const [otpRecord] = await db
+      .select()
       .from(otpsTable)
-      .where(
-        sql`email = ${email} AND code = ${otp} AND isUsed = 0 AND expiresAt > CURRENT_TIMESTAMP`
-      )
+      .where(sql`email = ${email} AND code = ${otp} AND isUsed = 0`)
       .limit(1);
 
-    return result.length > 0;
+    if (!otpRecord) return false;
+    return new Date(otpRecord.expiresAt).getTime() > Date.now();
   }
 
   private static async clearOtps(email: string): Promise<void> {
