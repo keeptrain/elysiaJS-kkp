@@ -49,5 +49,5 @@ async function bunWriteMail(email: string, html: string | undefined) {
   const nameFile = `${Date.now()}-${safeEmail}-otp.html`;
   const filePath = `${dir}/${nameFile}`;
   await Bun.write(filePath, html ?? '');
-  console.log(`[mailer:dev] OTP email for ${email} written to ${filePath}`);
+  // console.log(`[mailer:dev] OTP email for ${email} written to ${filePath}`);
 }

@@ -9,18 +9,15 @@ const emailSchema = t.String({
 });
 
 export const models = {
-  body: t.Union([
-    t.Object({
-      email: emailSchema,
-    }),
-    t.Object({
-      email: emailSchema,
-      otp: t.String({
+  body: t.Object({
+    email: emailSchema,
+    otp: t.Optional(
+      t.String({
         minLength: 6,
         maxLength: 6,
         pattern: '^[0-9]{6}$',
         error: 'Invalid OTP format',
-      }),
-    }),
-  ]),
+      })
+    ),
+  }),
 } as const;

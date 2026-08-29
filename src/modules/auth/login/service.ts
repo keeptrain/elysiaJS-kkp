@@ -2,20 +2,20 @@ import { randomUUIDv7 } from 'bun';
 import { db, tursoDb } from '../../../lib/turso-db';
 import { resendMailer } from '../../../lib/resend-mailer';
 import { otpsTable, sessionsTable, usersTable } from '../../../db/schema';
-import { generateRandomCode } from '../../../utils/utils';
+import { generateRandomCode, generateRandomString } from '../../../utils/utils';
 import { sql } from 'drizzle-orm';
 
 export abstract class LoginService {
   static async createSession(
     email: string
-  ): Promise<{ token: string; expiresAt: string }> {
+  ): Promise<{ token: string; maxAge: number }> {
     const userId = await this.checkUser(email);
 
     const [session] = await db
       .insert(sessionsTable)
       .values({
         userId,
-        token: 'as',
+        token: generateRandomString(32),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // expires in 24 hours
       })
       .returning({
@@ -25,7 +25,9 @@ export abstract class LoginService {
 
     return {
       token: session.token,
-      expiresAt: session.expiresAt,
+      maxAge: Math.floor(
+        (new Date(session.expiresAt).getTime() - Date.now()) / 1000
+      ),
     };
   }
 

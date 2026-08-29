@@ -8,7 +8,7 @@ export const loginApp = new Elysia().post(
   loginRoute,
   async ({ body, cookie }) => {
     const email = body.email;
-    if (!('otp' in body)) {
+    if (!('otp' in body && body.otp)) {
       await LoginService.sendingOtp(email);
       return {
         data: {
@@ -25,22 +25,18 @@ export const loginApp = new Elysia().post(
         });
       }
 
-      const { token, expiresAt } = await LoginService.createSession(email);
+      const { token, maxAge } = await LoginService.createSession(email);
 
-      //create cookie
       cookie.session.set({
         value: token,
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
         path: '/',
-        maxAge: Number(expiresAt), // contoh: 1 hari
+        maxAge: maxAge > 0 ? maxAge : 86400, // default to 1 day if maxAge is not positive
       });
 
       return {
-        data: {
-          email,
-        },
         message: 'Login successful, OTP verified.',
       };
     }
