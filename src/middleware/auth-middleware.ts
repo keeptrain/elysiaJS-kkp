@@ -35,7 +35,7 @@ export const authMiddleware = new Elysia()
       return status(401, 'Unauthorized: Invalid or expired session');
     }
 
-    if (new Date(session.expiresAt).getTime() < Date.now()) {
+    if (new Date(session.expiresAt).getTime() <= Date.now()) {
       return status(401, 'Unauthorized: Invalid or expired session');
     }
 
