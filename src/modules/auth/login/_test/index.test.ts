@@ -2,15 +2,16 @@
 import { readdir } from 'node:fs/promises';
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import { loginApp, loginRoute } from '../index';
-import { db } from '../../../../lib/turso-db';
-import { otpsTable, sessionsTable, usersTable } from '../../../../db/schema';
-import { sql } from 'drizzle-orm';
+import { db } from '../../../../lib/pg-db';
+import { sessionStore } from '../../../../lib/session-store';
+import { otpsTable, usersTable } from '../../../../db/schema';
+import { and, eq } from 'drizzle-orm';
 import { Glob } from 'bun';
 import { expectCookieValid, getCookie } from './utils';
 
 beforeEach(async () => {
+  await sessionStore.clear();
   await db.delete(otpsTable);
-  await db.delete(sessionsTable);
   await db.delete(usersTable);
 });
 
@@ -46,8 +47,7 @@ describe('auth/login/index Controller', () => {
         })
       );
       expect(await db.$count(usersTable)).toBe(1);
-      expect(await db.$count(sessionsTable)).toBe(1);
-      await db.delete(sessionsTable); // clear sessions to test second session creation
+      await sessionStore.clear(); // clear sessions to test second session creation
 
       // send OTP again for existing user
       await loginApp.handle(
@@ -67,12 +67,11 @@ describe('auth/login/index Controller', () => {
       );
       expect(verifyRes.status).toBe(200);
       expect(await db.$count(usersTable)).toBe(1); // still 1 user
-      expect(await db.$count(sessionsTable)).toBe(1); // new session created
 
-      // check session cookie and database entry
+      // check session cookie and store entry
       const sessionCookie = await getCookie(verifyRes.headers, 'session');
       await expectCookieValid(sessionCookie!);
-      await expectSessionInDb(sessionCookie!);
+      await expectSessionInStore(sessionCookie!, 'existing@gmail.com');
     });
 
     it('user login with correct otp and create user if not exists', async () => {
@@ -103,11 +102,10 @@ describe('auth/login/index Controller', () => {
       );
       expect(verifyRes.status).toBe(200);
       expect(await db.$count(usersTable)).toBe(1);
-      expect(await db.$count(sessionsTable)).toBe(1);
       const user = await db
         .select()
         .from(usersTable)
-        .where(sql`email = ${'newuser@gmail.com'}`);
+        .where(eq(usersTable.email, 'newuser@gmail.com'));
       expect(user[0].email).toBe('newuser@gmail.com');
 
       const responseJson = await verifyRes.json();
@@ -115,10 +113,10 @@ describe('auth/login/index Controller', () => {
         message: 'Login successful, OTP verified.',
       });
 
-      // check session cookie and database entry
+      // check session cookie and store entry
       const sessionCookie = await getCookie(verifyRes.headers, 'session');
       await expectCookieValid(sessionCookie!);
-      await expectSessionInDb(sessionCookie!);
+      await expectSessionInStore(sessionCookie!, 'newuser@gmail.com');
     });
 
     it('user login without creating user when first time login and otp sending', async () => {
@@ -144,7 +142,6 @@ describe('auth/login/index Controller', () => {
 
       expect(await db.$count(usersTable)).toBe(0);
       expect(await db.$count(otpsTable)).toBe(1);
-      expect(await db.$count(sessionsTable)).toBe(0);
 
       const otpMail = await getLastOtpMail('nouser@gmail.com');
       expect(otpMail).not.toBeNull();
@@ -189,7 +186,9 @@ describe('auth/login/index Controller', () => {
       await db
         .update(otpsTable)
         .set({ expiresAt: new Date(Date.now() - 60 * 1000).toISOString() })
-        .where(sql`email = ${email} AND code = ${code}`);
+        .where(
+          and(eq(otpsTable.email, email), eq(otpsTable.code, code))
+        );
 
       const res = await loginApp.handle(
         new Request(url, {
@@ -227,7 +226,9 @@ describe('auth/login/index Controller', () => {
       await db
         .update(otpsTable)
         .set({ isUsed: 1 })
-        .where(sql`email = ${email} AND code = ${code}`);
+        .where(
+          and(eq(otpsTable.email, email), eq(otpsTable.code, code))
+        );
 
       // second use - should fail
       const secondRes = await loginApp.handle(
@@ -361,29 +362,32 @@ async function getLastOtpMail(email: string) {
 }
 
 /**
- * Expect the session with the given token to exist in the database.
- * @param token
- * @param expiredAt Max age in seconds
+ * Expect the session with the given token to exist in the session store
+ * and belong to the user with the given email.
  */
-async function expectSessionInDb(sessionCookie: {
-  value: string;
-  maxAge: number;
-}) {
-  const sessionInDb = await db
+async function expectSessionInStore(
+  sessionCookie: {
+    value: string;
+    maxAge: number;
+  },
+  email: string
+) {
+  const session = await sessionStore.get(sessionCookie.value);
+  expect(session).not.toBeNull();
+  expect(session!.token).toEqual(sessionCookie.value);
+
+  const [user] = await db
     .select()
-    .from(sessionsTable)
-    .where(sql`token = ${sessionCookie.value}`)
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
     .limit(1);
+  expect(session!.userId).toEqual(user.id);
 
-  const session = sessionInDb[0];
-  expect(sessionInDb.length).toBe(1);
-  expect(session.token).toEqual(sessionCookie.value);
-
-  const expiresAt = new Date(session.expiresAt).getTime();
+  const expiresAt = new Date(session!.expiresAt).getTime();
   const now = Date.now();
   const maxAgeInMs = sessionCookie.maxAge * 1000;
 
-  // Check that the expiresAt in the database is within a reasonable range of the maxAge from the cookie
+  // Check that the expiresAt in the store is within a reasonable range of the maxAge from the cookie
   expect(expiresAt).toBeGreaterThanOrEqual(now);
   expect(expiresAt).toBeLessThanOrEqual(now + maxAgeInMs + 1000); // Allow 1 second margin
   expect(expiresAt).toBeGreaterThan(now);

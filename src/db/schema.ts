@@ -1,40 +1,20 @@
-import { sqliteTable, text, int } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
+import { integer, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 
-export const usersTable = sqliteTable('users', {
-  id: text({ length: 36 }).primaryKey(),
-  email: text({ length: 254 }).notNull().unique(),
-  createdAt: text()
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text()
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
+// NOTE: sessions tidak lagi di DB — pakai SessionStore (src/lib/session-store.ts,
+// saat ini in-memory, siap diganti Upstash/Redis).
+export const usersTable = pgTable('users', {
+  id: varchar({ length: 36 }).primaryKey(),
+  email: varchar({ length: 254 }).notNull().unique(),
+  createdAt: timestamp({ mode: 'string' }).notNull().defaultNow(),
+  updatedAt: timestamp({ mode: 'string' }).notNull().defaultNow(),
 });
 
-export const sessionsTable = sqliteTable('sessions', {
-  id: int().primaryKey({ autoIncrement: true }),
-  userId: text({ length: 36 })
-    .notNull()
-    .references(() => usersTable.id),
-  token: text({ length: 64 }).notNull().unique(),
-  expiresAt: text().notNull(),
-  createdAt: text()
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text()
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
-});
-
-export const otpsTable = sqliteTable('otps', {
-  id: int().primaryKey({ autoIncrement: true }),
-  email: text({ length: 254 }).notNull(),
-  code: text({ length: 6 }).notNull(),
-  isUsed: int().notNull().default(0),
-  attempts: int().notNull().default(0),
-  expiresAt: text().notNull(),
-  createdAt: text()
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
+export const otpsTable = pgTable('otps', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  email: varchar({ length: 254 }).notNull(),
+  code: varchar({ length: 6 }).notNull(),
+  isUsed: integer().notNull().default(0),
+  attempts: integer().notNull().default(0),
+  expiresAt: timestamp({ mode: 'string' }).notNull(),
+  createdAt: timestamp({ mode: 'string' }).notNull().defaultNow(),
 });

@@ -14,4 +14,4 @@
 - Staging overlay: `target: prod`, `restart: unless-stopped`, env dari `../.env.staging`, postgres `kkp_staging` (host port commented out), volume `pgdata_staging`, app di host `:3001`. `NODE_ENV=staging` berperilaku seperti dev di kode; set `production` bila ingin persis prod.
 - Prod overlay: `target: prod`, no source mounts (immutable build), `restart: unless-stopped`, env dari `../.env`, postgres `kkp` (host port commented out), volume `pgdata_prod`.
 - `app` waits for `db` via `depends_on: service_healthy` (`pg_isready`).
-- NOTE: app code is still SQLite/Turso (`src/lib/turso-db.ts`, drizzle `sqlite` dialect), so `DATABASE_URL` (postgres) is provisioned but unused until migrated to drizzle `pg`.
+- NOTE: app memakai drizzle `pg` (`src/lib/pg-db.ts`, tabel `users`+`otps` di postgres via `DATABASE_URL`). Sessions tidak di DB — pakai `SessionStore` (`src/lib/session-store.ts`, in-memory, siap diganti Upstash/Redis). `bun test` me-load `.env.test` (`NODE_ENV=test`); jangan arahkan ke db prod/staging karena test menghapus isi tabel.

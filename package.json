@@ -4,13 +4,16 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\""
   },
   "dependencies": {
-    "@libsql/client": "^0.17.4",
     "drizzle-orm": "^1.0.0-rc.4",
     "elysia": "latest",
+    "postgres": "^3.4.9",
     "resend": "^6.24.0"
   },
   "devDependencies": {

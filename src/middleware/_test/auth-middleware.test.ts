@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { db } from '../../lib/turso-db';
-import { sessionsTable, usersTable } from '../../db/schema';
-import { generateRandomString } from '../../utils/utils';
+import { db } from '../../lib/pg-db';
+import { sessionStore } from '../../lib/session-store';
+import { usersTable } from '../../db/schema';
 import { protectedRoutes } from '../..';
 import { randomUUIDv7 } from 'bun';
-import { sql } from 'drizzle-orm';
 
 beforeEach(async () => {
-  await db.delete(sessionsTable);
+  await sessionStore.clear();
   await db.delete(usersTable);
 });
 
@@ -43,12 +42,7 @@ describe('middleware/auth-middleware', () => {
   });
 
   it('401 when session expired', async () => {
-    const { token } = await createUserWithSession();
-
-    await db
-      .update(sessionsTable)
-      .set({ expiresAt: new Date(Date.now() - 1000).toISOString() })
-      .where(sql`token = ${token}`);
+    const { token } = await createUserWithSession(-60);
 
     const res = await protectedRoute.handle(
       new Request(url, {
@@ -62,7 +56,7 @@ describe('middleware/auth-middleware', () => {
   });
 
   it('401 when session not found in db', async () => {
-    const fakeToken = generateRandomString(32);
+    const fakeToken = 'a'.repeat(32);
     const res = await protectedRoute.handle(
       new Request(url, {
         headers: { cookie: `session=${fakeToken}` },
@@ -102,11 +96,9 @@ describe('middleware/auth-middleware', () => {
   });
 
   it('should return 401 when expiresAt equals now (boundary)', async () => {
-    const { token } = await createUserWithSession();
-    await db
-      .update(sessionsTable)
-      .set({ expiresAt: new Date().toISOString() })
-      .where(sql`token = ${token}`);
+    const { token } = await createUserWithSession(0);
+    // pastikan waktu bergerak melewati expiry
+    await new Promise((r) => setTimeout(r, 5));
     const res = await protectedRoute.handle(
       new Request(url, {
         headers: { cookie: `session=${token}` },
@@ -118,30 +110,14 @@ describe('middleware/auth-middleware', () => {
   });
 });
 
-async function createUserWithSession() {
+async function createUserWithSession(ttlSeconds?: number) {
   const userId = randomUUIDv7();
   await db.insert(usersTable).values({
     id: userId,
     email: `test-${userId}@gmail.com`,
   });
 
-  const token = generateRandomString(32);
-  const [session] = await db
-    .insert(sessionsTable)
-    .values({
-      userId: userId,
-      token,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    })
-    .returning({
-      userId: sessionsTable.userId,
-      token: sessionsTable.token,
-      expiresAt: sessionsTable.expiresAt,
-    });
+  const { token } = await sessionStore.create(userId, ttlSeconds);
 
-  return {
-    userId: session.userId,
-    token: session.token,
-    expiresAt: session.expiresAt,
-  };
+  return { userId, token };
 }

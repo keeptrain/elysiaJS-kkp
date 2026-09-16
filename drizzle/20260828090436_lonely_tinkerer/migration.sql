@@ -1,6 +1,0 @@
-CREATE TABLE `users` (
-	`id` text(36) PRIMARY KEY,
-	`email` text(254) NOT NULL UNIQUE,
-	`createdAt` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updatedAt` text DEFAULT CURRENT_TIMESTAMP NOT NULL
-);

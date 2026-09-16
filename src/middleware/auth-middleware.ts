@@ -1,7 +1,5 @@
 import { Elysia, status, t } from 'elysia';
-import { db } from '../lib/turso-db';
-import { sessionsTable } from '../db/schema';
-import { sql } from 'drizzle-orm';
+import { sessionStore } from '../lib/session-store';
 
 export const cookieSchema = {
   cookie: t.Object({
@@ -21,15 +19,9 @@ export const authMiddleware = new Elysia()
   })
   .resolve({ as: 'scoped' }, async ({ cookie }) => {
     // check are session is expired
-    const [session] = await db
-      .select({
-        userId: sessionsTable.userId,
-        token: sessionsTable.token,
-        expiresAt: sessionsTable.expiresAt,
-      })
-      .from(sessionsTable)
-      .where(sql`token = ${cookie.session.value}`)
-      .limit(1);
+    const session = cookie.session.value 
+      ? await sessionStore.get(String(cookie.session.value)) 
+      : null;
 
     if (!session) {
       return status(401, 'Unauthorized: Invalid or expired session');
