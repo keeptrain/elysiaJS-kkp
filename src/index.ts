@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 
 import { isProduction, env } from '@/utils/env';
-import { betterAuthRouteHook, betterAuthView } from '@/utils/auth-utils';
+import { betterAuthRouteHook, betterAuthView } from '@/modules/auth/utilts';
 import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
 import { productsApp } from '@/modules/products';
 import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
