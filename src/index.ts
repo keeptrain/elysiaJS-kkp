@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { isProduction, env } from '@/utils/env';
+import { isProduction, env } from '@/constants/env';
 import { betterAuthRouteHook, betterAuthView } from '@/modules/auth/utilts';
 import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
 import { productsApp } from '@/modules/products';

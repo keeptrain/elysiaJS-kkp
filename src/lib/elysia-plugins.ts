@@ -1,6 +1,6 @@
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysia/openapi';
-import { env } from '@/utils/env';
+import { env } from '@/constants/env';
 import { OpenAPI } from '@/utils/openapi-utils';
 
 export const corsPlugin = cors({

@@ -1,5 +1,5 @@
 import { CreateEmailOptions, Resend } from 'resend';
-import { isProduction } from '@/utils/env';
+import { isProduction } from '@/constants/env';
 
 // Top-level singleton — 1x allocation
 const resend = new Resend(process.env.RESEND_API_KEY!);

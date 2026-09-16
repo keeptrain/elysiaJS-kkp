@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { isTest } from '@/utils/env';
+import { isTest } from '@/constants/env';
 import { redis } from 'bun';
 
 export const ipRateLimiterMiddleware = new Elysia({ name: 'public-middleware' })
