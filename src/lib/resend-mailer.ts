@@ -1,5 +1,5 @@
 import { CreateEmailOptions, Resend } from 'resend';
-import { isProduction } from '@/constants/env';
+import { env } from '@/constants/env';
 
 // Top-level singleton — 1x allocation
 const resend = new Resend(process.env.RESEND_API_KEY!);
@@ -11,7 +11,7 @@ export const resendMailer = async (
 ): Promise<boolean> => {
   const template = ResendMailerTemplate.sendOtp(email, code, expiresInMinutes);
 
-  if (!isProduction) {
+  if (!env.isProduction) {
     await bunWriteMail(email, template.html);
     return true;
   }

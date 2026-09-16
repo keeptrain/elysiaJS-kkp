@@ -1,12 +1,12 @@
 import { Elysia } from 'elysia';
-import { isTest } from '@/constants/env';
+import { env } from '@/constants/env';
 import { redis } from 'bun';
 
 export const ipRateLimiterMiddleware = new Elysia({ name: 'public-middleware' })
   .onBeforeHandle(
     { as: 'global' },
     async ({ request, server, headers, set }) => {
-      if (isTest) return;
+      if (env.isTest) return;
       const forwarded =
         headers['x-forwarded-for'] || request.headers.get('x-forwarded-for');
       const ip =

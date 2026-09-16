@@ -1,6 +1,8 @@
-export const isProduction = process.env.NODE_ENV === 'production';
-export const isDevelopment = process.env.NODE_ENV === 'development';
-export const isTest = process.env.NODE_ENV === 'test';
+const require = (key: string, fallback?: string) => {
+  const value = process.env[key] ?? fallback;
+  if (!value) throw new Error(`Missing required env: ${key}`);
+  return value;
+};
 
 const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
 const frontEndUrl = process.env.FRONT_END_URL ?? 'http://localhost:3000';
@@ -13,23 +15,27 @@ export const env = {
 
   FRONT_END_URL: frontEndUrl,
 
-  DATABASE_URL: process.env.DATABASE_URL!,
+  DATABASE_URL: require('DATABASE_URL'),
+  REDIS_URL: require('REDIS_URL'),
 
-  REDIS_URL: process.env.REDIS_URL!,
-
-  // CORS
-  CORS_ORIGIN_ALLOWED: [appUrl, frontEndUrl] as string[],
-
-  // Better Auth Package (dev fallback acak — prod wajib isi via env)
   BETTER_AUTH_SECRET:
-    process.env.BETTER_AUTH_SECRET ??
-    '36ed5037ed7b64493eb960d042b242c1fbeb51d88011734d0fb7758059d5183b',
+    process.env.NODE_ENV === 'production'
+      ? require('BETTER_AUTH_SECRET')
+      : (process.env.BETTER_AUTH_SECRET ??
+        '36ed5037ed7b64493eb960d042b242c1fbeb51d88011734d0fb7758059d5183b'),
 
-  // Google (kosong = OAuth Google nonaktif sampai kredensial asli diisi via env)
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
 
-  isProduction,
-  isDevelopment,
-  isTest,
+  CORS_ORIGIN_ALLOWED: [appUrl, frontEndUrl] as string[],
+
+  get isProduction() {
+    return this.NODE_ENV === 'production';
+  },
+  get isDevelopment() {
+    return this.NODE_ENV === 'development';
+  },
+  get isTest() {
+    return this.NODE_ENV === 'test';
+  },
 } as const;

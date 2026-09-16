@@ -4,7 +4,7 @@ import { emailOTP, openAPI, testUtils } from 'better-auth/plugins';
 import { db } from '@/lib/pg-db';
 import * as schema from '@/db/auth-schema';
 import { resendMailer } from '@/lib/resend-mailer';
-import { env, isTest } from '@/constants/env';
+import { env } from '@/constants/env';
 import {
   betterAuthEnabledPaths,
   betterAuthDisabledPaths,
@@ -32,12 +32,12 @@ export const auth = betterAuth({
     openAPI(),
     // Test-only: helper ctx.test (login, getAuthHeaders, capture OTP).
     // Tidak register HTTP route; sengaja tidak ikut ke config production.
-    ...(isTest ? [testUtils({ captureOTP: true })] : []),
+    ...(env.isTest ? [testUtils({ captureOTP: true })] : []),
     emailOTP({
       otpLength: 6,
       expiresIn: 300, // 5 menit — samakan dengan flow /login lama
       // Bawaan 3 req/60s bikin re-run test flaky (429); longgarkan saat test.
-      ...(isTest ? { rateLimit: { window: 60, max: 1000 } } : {}),
+      ...(env.isTest ? { rateLimit: { window: 60, max: 1000 } } : {}),
       async sendVerificationOTP({ email, otp }) {
         // NOTE: pembatasan @gmail.com ditegakkan di edge
         // (src/utils/auth-utils.ts, betterAuthView) karena hook ini jalan sebagai background task dan

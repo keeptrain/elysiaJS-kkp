@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { isProduction, env } from '@/constants/env';
+import { env } from '@/constants/env';
 import { betterAuthRouteHook, betterAuthView } from '@/modules/auth/utils';
 import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
 import { productsApp } from '@/modules/products';
@@ -22,7 +22,7 @@ export const app = new Elysia()
 
 app.listen(env.APP_PORT);
 
-if (!isProduction) {
+if (!env.isProduction) {
   console.log(
     `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
   );
