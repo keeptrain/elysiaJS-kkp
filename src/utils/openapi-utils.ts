@@ -1,7 +1,6 @@
 import type { OpenAPIV3_1 } from 'openapi-types';
-
 import { auth } from '@/lib/auth';
-import { RELEVANT_AUTH_PATHS } from '@/modules/auth/utilts';
+import { RELEVANT_AUTH_PATHS } from '@/modules/auth/utils';
 
 // OpenAPI integration untuk @elysia/openapi — butuh plugin openAPI()
 // di lib/auth.ts agar auth.api.generateOpenAPISchema tersedia.
