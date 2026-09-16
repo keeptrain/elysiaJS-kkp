@@ -1,10 +1,14 @@
-import { betterAuth } from 'better-auth';
+import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { emailOTP, openAPI, testUtils } from 'better-auth/plugins';
 import { db } from '@/lib/pg-db';
 import * as schema from '@/db/auth-schema';
 import { resendMailer } from '@/lib/resend-mailer';
-import { env, isTest } from '@/utils/env';
+import { env, isTest } from '@/constants/env';
+import {
+  betterAuthEnabledPaths,
+  betterAuthDisabledPaths,
+} from '@/constants/routes';
 
 export const auth = betterAuth({
   baseURL: env.APP_URL,
@@ -14,6 +18,10 @@ export const auth = betterAuth({
     schema,
     usePlural: true,
   }),
+  rateLimit: {
+    window: 60,
+    max: 120,
+  },
   socialProviders: {
     google: {
       clientId: env.GOOGLE_CLIENT_ID,
@@ -45,6 +53,8 @@ export const auth = betterAuth({
     cookieCache: { enabled: true, maxAge: 300 },
   },
   trustedOrigins: env.CORS_ORIGIN_ALLOWED,
+  enabledPaths: betterAuthEnabledPaths,
+  disabledPaths: betterAuthDisabledPaths as unknown as string[],
 });
 
 export type Auth = typeof auth;
