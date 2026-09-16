@@ -1,0 +1,41 @@
+# Staging: `podman compose -f .docker/compose.yaml -f .docker/compose.staging.yaml up --build -d`
+# Topologi mirip prod (app+db bareng di container), nilai dari ../.env.staging.
+# NOTE: NODE_ENV=staging berperilaku seperti dev di kode (mailer tulis file,
+# bukan kirim Resend). Set NODE_ENV=production di .env.staging bila ingin
+# perilaku persis prod (kirim email asli, pakai Turso live).
+services:
+  app:
+    build:
+      target: prod
+    container_name: elysia-app-staging
+    restart: unless-stopped
+    ports:
+      - "${APP_HOST_PORT:-3001}:${PORT:-3000}"
+    env_file:
+      - ../.env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3000}
+      APP_URL: ${APP_URL:-http://staging.api.kkp.go.id}
+      DATABASE_URL: ${DATABASE_URL:-postgres://kkp:kkp_staging_secret@db:5432/kkp_staging}
+    volumes:
+      # persist sqlite file lokal bila masih pakai libsql file:
+      - ../database:/usr/src/app/database
+
+  db:
+    container_name: elysia-postgres-staging
+    restart: unless-stopped
+    # tutup port host di staging bila app saja yang akses db:
+    # ports:
+    #   - "${DB_HOST_PORT:-5433}:5432"
+    env_file:
+      - ../.env.staging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kkp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kkp_staging_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-kkp_staging}
+    volumes:
+      - pgdata_staging:/var/lib/postgresql/data
+
+volumes:
+  pgdata_staging:
