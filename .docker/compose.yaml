@@ -1,0 +1,21 @@
+name: elysiajs-kkp
+
+# Base: definisi umum. Jangan jalankan langsung,
+# tambah -f compose.dev.yaml (dev) atau -f compose.prod.yaml (prod).
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .docker/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: docker.io/library/postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-kkp} -d $${POSTGRES_DB:-kkp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s

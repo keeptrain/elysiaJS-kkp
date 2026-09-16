@@ -4,7 +4,7 @@ export const isTest = process.env.NODE_ENV === 'test';
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
-  PORT: Number(process.env.PORT ?? 3000),
+  PORT: Number(process.env.APP_PORT ?? 3000),
   APP_URL: process.env.APP_URL ?? 'http://localhost:3000',
   isProduction,
   isDevelopment,

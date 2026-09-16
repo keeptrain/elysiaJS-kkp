@@ -1,0 +1,39 @@
+# Dev: `podman compose -f .docker/compose.yaml -f .docker/compose.dev.yaml up --build`
+# Semua nilai dari ../.env.development — jangan hardcode di sini.
+services:
+  app:
+    build:
+      target: dev
+    container_name: elysia-app-dev
+    ports:
+      - "${APP_HOST_PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - ../.env.development
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3000}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      DATABASE_URL: ${DATABASE_URL:-postgres://kkp:kkp_dev_secret@db:5432/kkp_dev}
+    volumes:
+      - ../src:/usr/src/app/src:ro
+      - ../drizzle:/usr/src/app/drizzle:ro
+      - ../drizzle.config.ts:/usr/src/app/drizzle.config.ts:ro
+      - ../package.json:/usr/src/app/package.json:ro
+      - ../database:/usr/src/app/database
+      - /usr/src/app/node_modules
+
+  db:
+    container_name: elysia-postgres-dev
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"
+    env_file:
+      - ../.env.development
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kkp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kkp_dev_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-kkp_dev}
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+
+volumes:
+  pgdata_dev:

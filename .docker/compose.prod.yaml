@@ -1,0 +1,38 @@
+# Prod: `podman compose -f .docker/compose.yaml -f .docker/compose.prod.yaml up --build -d`
+# Semua nilai dari ../.env — jangan hardcode di sini.
+services:
+  app:
+    build:
+      target: prod
+    container_name: elysia-app-prod
+    restart: unless-stopped
+    ports:
+      - "${APP_HOST_PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      APP_URL: ${APP_URL:-http://main.api.kkp.go.id}
+      DATABASE_URL: ${DATABASE_URL:-postgres://kkp:kkp_secret@db:5432/kkp}
+    volumes:
+      # persist sqlite file lokal bila masih pakai libsql file:
+      - ../database:/usr/src/app/database
+
+  db:
+    container_name: elysia-postgres-prod
+    restart: unless-stopped
+    # tutup port host di prod bila app saja yang akses db:
+    # ports:
+    #   - "${DB_HOST_PORT:-5432}:5432"
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kkp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kkp_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-kkp}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+
+volumes:
+  pgdata_prod:
