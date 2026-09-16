@@ -1,29 +1,18 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
 import { Elysia, status } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/pg-db';
 import { auth } from '@/lib/auth';
-import { sessions, accounts, verifications, users } from '@/db/auth-schema';
+import { sessions, users } from '@/db/auth-schema';
 import { app } from '@/index';
+import { cleanAuthDb } from './utils';
 
 const base = 'http://localhost:3000';
 
-// Helper resmi better-auth (plugin testUtils, aktif saat NODE_ENV=test).
-const ctx = await auth.$context;
-const test = (ctx as typeof ctx & { test: TestHelpers }).test;
-
-beforeEach(async () => {
-  test.clearOTPs!();
-  await db.delete(sessions);
-  await db.delete(accounts);
-  await db.delete(verifications);
-  await db.delete(users);
-});
-
 // ---------------------------------------------------------------------------
-// Mock callback endpoint: simulasi pertukaran `code` OAuth tanpa memanggil
-// Google. `valid-mock-code` → session cookie, selain itu 400.
+// Mock OAuth callback – simulates exchanging an OAuth `code` without
+// calling Google. `valid-mock-code` → mock session cookie, otherwise 400.
 // ---------------------------------------------------------------------------
 function mockExchangeCode(code: string) {
   if (code === 'valid-mock-code') {
@@ -48,8 +37,22 @@ export const mockCallbackApp = new Elysia().get(
   }
 );
 
-describe('sign-in email-otp', () => {
-  it('tolak email non-gmail saat kirim OTP', async () => {
+describe('sign-in via email OTP', () => {
+  let test: TestHelpers;
+
+  beforeAll(async () => {
+    const ctx = await auth.$context;
+    test = ctx.test;
+  });
+
+  beforeEach(async () => {
+    test.clearOTPs!();
+    await cleanAuthDb();
+  });
+
+  it('should reject non-Gmail addresses when requesting an OTP', async () => {
+    // Non-Gmail addresses are blocked at the edge (betterAuthView); the
+    // API must respond with 400 and mention the email format.
     const res = await app.handle(
       new Request(`${base}/api/auth/email-otp/send-verification-otp`, {
         method: 'POST',
@@ -61,21 +64,26 @@ describe('sign-in email-otp', () => {
     expect(await res.text()).toContain('Invalid email format');
   });
 
-  it('kirim OTP ke gmail bisa diambil via getOTP', async () => {
+  it('should generate a 6-digit OTP for a valid Gmail address', async () => {
+    // Given a Gmail address requesting sign-in
     const email = 'signin@gmail.com';
     await auth.api.sendVerificationOTP({
       body: { email, type: 'sign-in' },
     });
 
+    // Then the OTP should be capturable via the test helper
     const otp = test.getOTP!(email);
     expect(otp).toMatch(/^\d{6}$/);
   });
 
-  it('tolak OTP salah', async () => {
+  it('should reject sign-in with an incorrect OTP', async () => {
+    // Given a valid OTP was issued
     const email = 'wrong@gmail.com';
     await auth.api.sendVerificationOTP({
       body: { email, type: 'sign-in' },
     });
+
+    // When signing in with a wrong code
     const res = await app.handle(
       new Request(`${base}/api/auth/sign-in/email-otp`, {
         method: 'POST',
@@ -83,11 +91,13 @@ describe('sign-in email-otp', () => {
         body: JSON.stringify({ email, otp: '000000' }),
       })
     );
+
+    // Then the request should be rejected
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('Invalid OTP');
   });
 
-  it('tolak sign-in tanpa otp', async () => {
+  it('should reject sign-in when OTP is missing', async () => {
     const res = await app.handle(
       new Request(`${base}/api/auth/sign-in/email-otp`, {
         method: 'POST',
@@ -98,7 +108,8 @@ describe('sign-in email-otp', () => {
     expect([400, 422]).toContain(res.status);
   });
 
-  it('sign-in dengan OTP benar membuat user + session + cookie', async () => {
+  it('should create a user, session, and set a session cookie with a valid OTP', async () => {
+    // Given a Gmail address that received a valid OTP
     const email = 'ok@gmail.com';
     await auth.api.sendVerificationOTP({
       body: { email, type: 'sign-in' },
@@ -106,6 +117,7 @@ describe('sign-in email-otp', () => {
     const otp = test.getOTP!(email);
     expect(otp).toBeDefined();
 
+    // When signing in with the correct OTP
     const res = await app.handle(
       new Request(`${base}/api/auth/sign-in/email-otp`, {
         method: 'POST',
@@ -113,6 +125,8 @@ describe('sign-in email-otp', () => {
         body: JSON.stringify({ email, otp }),
       })
     );
+
+    // Then a user + session should be created and a session cookie set
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toContain(
       'better-auth.session_token'
@@ -126,10 +140,34 @@ describe('sign-in email-otp', () => {
     expect(user).toBeDefined();
     expect(await db.$count(sessions)).toBe(1);
   });
+
+  it('should return user data for an authenticated request (protected-route pattern)', async () => {
+    // Setup — same pattern as `describe("protected route")` reference
+    const user = test.createUser({ email: 'test@example.com' });
+    await test.saveUser(user);
+    // Get authenticated headers
+    const headers = await test.getAuthHeaders({ userId: user.id });
+    // Test authenticated request
+    const session = await auth.api.getSession({ headers });
+    expect(session?.user.id).toBe(user.id);
+    // Cleanup
+    await test.deleteUser(user.id);
+  });
 });
 
-describe('sign-in social + callback', () => {
-  it('POST /sign-in/social mengembalikan URL OAuth Google', async () => {
+describe('sign-in via OAuth (Google)', () => {
+  let test: TestHelpers;
+
+  beforeAll(async () => {
+    const ctx = await auth.$context;
+    test = ctx.test;
+  });
+
+  beforeEach(async () => {
+    await cleanAuthDb();
+  });
+
+  it('should return a Google OAuth URL when starting a social sign-in', async () => {
     const res = await app.handle(
       new Request(`${base}/api/auth/sign-in/social`, {
         method: 'POST',
@@ -146,17 +184,30 @@ describe('sign-in social + callback', () => {
     expect(decodeURIComponent(json.url)).toContain('/api/auth/callback/google');
   });
 
-  it('GET /callback/google dengan state invalid redirect ke error', async () => {
+  it('should redirect to an error when the OAuth callback state is invalid', async () => {
     const res = await app.handle(
       new Request(`${base}/api/auth/callback/google?code=x&state=y`)
     );
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toContain('error=state_mismatch');
   });
+
+  it('should return user data for authenticated request (same helper as protected route)', async () => {
+    // Setup
+    const user = test.createUser({ email: 'oauth-test@gmail.com' });
+    await test.saveUser(user);
+    // Get authenticated headers
+    const headers = await test.getAuthHeaders({ userId: user.id });
+    // Test authenticated request
+    const session = await auth.api.getSession({ headers });
+    expect(session?.user.id).toBe(user.id);
+    // Cleanup
+    await test.deleteUser(user.id);
+  });
 });
 
-describe('mock callback endpoint', () => {
-  it('code valid → 200 + set-cookie session mock', async () => {
+describe('mock OAuth callback (isolated, no Google network call)', () => {
+  it('should return 200 and set a mock session cookie for a valid code', async () => {
     const res = await mockCallbackApp.handle(
       new Request(`${base}/api/auth/callback/mock?code=valid-mock-code`)
     );
@@ -166,7 +217,7 @@ describe('mock callback endpoint', () => {
     expect(json.user.email).toBe('mock@gmail.com');
   });
 
-  it('code invalid → 400', async () => {
+  it('should return 400 when the code is invalid', async () => {
     const res = await mockCallbackApp.handle(
       new Request(`${base}/api/auth/callback/mock?code=salah`)
     );
@@ -174,7 +225,7 @@ describe('mock callback endpoint', () => {
     expect(await res.text()).toContain('Invalid code');
   });
 
-  it('tanpa code → 400', async () => {
+  it('should return 400 when the code query param is missing', async () => {
     const res = await mockCallbackApp.handle(
       new Request(`${base}/api/auth/callback/mock`)
     );
