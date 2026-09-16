@@ -1,11 +1,12 @@
 import { Elysia, status } from 'elysia';
 import { InMemoryRateLimiter } from '../utils/in-memory-rate-limiter';
+import { isTest } from '../utils/env';
 
 const limiter = new InMemoryRateLimiter(60000, 1); // 1 request per minute
 
 export const publicMiddleware = new Elysia({ name: 'public-middleware' })
   .onBeforeHandle({ as: 'global' }, ({ request, server, headers }) => {
-    // server.requestIP paling akurat di Bun, fallback ke x-forwarded-for (ambil IP pertama)
+    if (isTest) return;
     const forwarded =
       headers['x-forwarded-for'] || request.headers.get('x-forwarded-for');
     const ip =

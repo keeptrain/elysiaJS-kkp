@@ -57,3 +57,4 @@ src/modules/auth/login/_test/otp-mail/*.html
 **/*.log
 package-lock.json
 **/*.bun
+tmp/

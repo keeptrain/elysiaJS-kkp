@@ -43,7 +43,7 @@ abstract class ResendMailerTemplate {
 }
 
 async function bunWriteMail(email: string, html: string | undefined) {
-  const dir = 'src/modules/auth/login/_test/otp-mail';
+  const dir = 'tmp/otp-mail';
   await Bun.$`mkdir -p ${dir}`.quiet();
   const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, '_');
   const nameFile = `${Date.now()}-${safeEmail}-otp.html`;
