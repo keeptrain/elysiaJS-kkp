@@ -1,4 +1,4 @@
-import { auth } from '../lib/auth';
+import { auth } from '@/lib/auth';
 
 export const GMAIL_ONLY = '@gmail.com';
 

@@ -1,6 +1,6 @@
 // test/index.test.ts
 import { describe, expect, it } from 'bun:test';
-import { app } from '../../..';
+import { app } from '@/index';
 
 const url = `${process.env.APP_URL}/products`;
 

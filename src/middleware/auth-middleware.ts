@@ -1,5 +1,5 @@
 import { Elysia, status } from 'elysia';
-import { auth } from '../lib/auth';
+import { auth } from '@/lib/auth';
 
 export const authMiddleware = new Elysia({
   name: 'auth-middleware',

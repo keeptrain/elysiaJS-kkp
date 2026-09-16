@@ -1,27 +1,31 @@
-import { Elysia, status } from 'elysia';
-import { InMemoryRateLimiter } from '../utils/in-memory-rate-limiter';
-import { isTest } from '../utils/env';
+import { Elysia } from 'elysia';
+import { isTest } from '@/utils/env';
+import { redis } from 'bun';
 
-const limiter = new InMemoryRateLimiter(60000, 1); // 1 request per minute
+export const ipRateLimiterMiddleware = new Elysia({ name: 'public-middleware' })
+  .onBeforeHandle(
+    { as: 'global' },
+    async ({ request, server, headers, set }) => {
+      if (isTest) return;
+      const forwarded =
+        headers['x-forwarded-for'] || request.headers.get('x-forwarded-for');
+      const ip =
+        (server as any)?.requestIP?.(request)?.address ||
+        forwarded?.split(',')[0]?.trim() ||
+        '127.0.0.1';
 
-export const publicMiddleware = new Elysia({ name: 'public-middleware' })
-  .onBeforeHandle({ as: 'global' }, ({ request, server, headers }) => {
-    if (isTest) return;
-    const forwarded =
-      headers['x-forwarded-for'] || request.headers.get('x-forwarded-for');
-    const ip =
-      (server as any)?.requestIP?.(request)?.address ||
-      forwarded?.split(',')[0]?.trim() ||
-      '127.0.0.1';
+      const key = `rate-limit:${ip}`;
 
-    const { allowed, retryAfter } = limiter.check(ip);
+      const count = await redis.incr(key);
+      if (count === 1) {
+        await redis.expire(key, 60); // Reset dalam 60 detik
+      }
 
-    if (!allowed) {
-      return status(429, {
-        message: `Too Many Requests: Silakan coba lagi dalam ${retryAfter} detik.`,
-      });
+      if (count > 100) {
+        set.status = 429;
+        throw new Error('Too many requests');
+      }
     }
-  })
-  .decorate('getDate', () => Date.now())
-  // expose limiter untuk testing / reset
-  .decorate('limiter', limiter);
+  )
+  .decorate('getDate', () => Date.now());
+// expose limiter untuk testing / reset

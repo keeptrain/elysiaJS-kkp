@@ -1,7 +1,7 @@
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysia/openapi';
-import { env } from '../utils/env';
-import { OpenAPI } from '../utils/openapi-utils';
+import { env } from '@/utils/env';
+import { OpenAPI } from '@/utils/openapi-utils';
 
 export const corsPlugin = cors({
   origin: env.CORS_ORIGIN_ALLOWED,

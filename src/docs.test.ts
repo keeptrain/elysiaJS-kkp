@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { app } from './index';
+import { app } from '@/index';
 
 const base = 'http://localhost:3000';
 

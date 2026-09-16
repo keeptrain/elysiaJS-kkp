@@ -1,15 +1,15 @@
 import { Elysia } from 'elysia';
 
-import { isProduction, env } from './utils/env';
-import { betterAuthRouteHook, betterAuthView } from './utils/auth-utils';
-import { corsPlugin, openapiPlugin } from './lib/elysia-plugins';
-import { productsApp } from './modules/products';
-import { publicMiddleware } from './middleware/public-middleware';
-import { authMiddleware } from './middleware/auth-middleware';
+import { isProduction, env } from '@/utils/env';
+import { betterAuthRouteHook, betterAuthView } from '@/utils/auth-utils';
+import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
+import { productsApp } from '@/modules/products';
+import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
+import { authMiddleware } from '@/middleware/auth-middleware';
 
 const publicRoutes = new Elysia()
   .use(corsPlugin)
-  .use(publicMiddleware)
+  .use(ipRateLimiterMiddleware)
   .use(productsApp)
   .all('/api/auth/*', betterAuthView, betterAuthRouteHook);
 

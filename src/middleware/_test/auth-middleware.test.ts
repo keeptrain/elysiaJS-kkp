@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { db } from '../../lib/pg-db';
-import { accounts, sessions, users, verifications } from '../../db/auth-schema';
-import { app } from '../..';
+import { db } from '@/lib/pg-db';
+import { accounts, sessions, users, verifications } from '@/db/auth-schema';
+import { app } from '@/index';
 
 const base = 'http://localhost:3000';
 
