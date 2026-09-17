@@ -45,7 +45,7 @@ describe('session lifecycle', () => {
       new Request(`${base}/api/auth/get-session`, {
         headers: {
           'Content-Type': 'application/json',
-          cookie: 'better-auth.session_token=invalid',
+          cookie: 'session=invalid',
         },
       })
     );

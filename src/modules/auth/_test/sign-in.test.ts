@@ -83,7 +83,7 @@ describe('sign-in via email OTP', () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toContain('better-auth.session_token');
+    expect(res.headers.get('set-cookie')).toContain('session');
 
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     expect(user).toBeDefined();

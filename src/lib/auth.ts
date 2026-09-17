@@ -48,8 +48,13 @@ export const auth = betterAuth({
       },
     }),
   ],
+  cookies: {
+    sessionToken: {
+      name: 'session',
+    },
+  },
   session: {
-    expiresIn: 86400, // 1 day
+    expiresIn: 86400,
     cookieCache: { enabled: true, maxAge: 300 },
   },
   trustedOrigins: env.CORS_ORIGIN_ALLOWED,
