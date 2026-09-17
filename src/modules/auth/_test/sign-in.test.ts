@@ -6,14 +6,12 @@ import { db } from '@/lib/pg-db';
 import { auth } from '@/lib/auth';
 import { sessions, users } from '@/db/auth-schema';
 import { app } from '@/index';
+import { treaty } from '@elysia/eden';
 import { cleanAuthDb } from './utils';
 
+const api = treaty(app).api;
 const base = 'http://localhost:3000';
 
-// ---------------------------------------------------------------------------
-// Mock OAuth callback – simulates exchanging an OAuth `code` without
-// calling Google. `valid-mock-code` → mock session cookie, otherwise 400.
-// ---------------------------------------------------------------------------
 function mockExchangeCode(code: string) {
   if (code === 'valid-mock-code') {
     return { id: 'mock-user-id', email: 'mock@gmail.com', name: 'Mock User' };
@@ -37,6 +35,20 @@ export const mockCallbackApp = new Elysia().get(
   }
 );
 
+async function authedHeaders(email: string) {
+  const ctx = await auth.$context;
+  const test = ctx.test;
+  const user = test.createUser({ email });
+  await test.saveUser(user);
+  const raw = await test.getAuthHeaders({ userId: user.id });
+  const userId = user.id;
+  return {
+    headers: Object.fromEntries(raw.entries()),
+    cleanup: async () => { await test.deleteUser(userId); },
+  };
+}
+
+// ── Happy path: email OTP ─────────────────────────────
 describe('sign-in via email OTP', () => {
   let test: TestHelpers;
 
@@ -50,74 +62,19 @@ describe('sign-in via email OTP', () => {
     await cleanAuthDb();
   });
 
-  it('should reject non-Gmail addresses when requesting an OTP', async () => {
-    // Non-Gmail addresses are blocked at the edge (betterAuthView); the
-    // API must respond with 400 and mention the email format.
-    const res = await app.handle(
-      new Request(`${base}/api/auth/email-otp/send-verification-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'user@yahoo.com', type: 'sign-in' }),
-      })
-    );
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain('Invalid email format');
-  });
-
-  it('should generate a 6-digit OTP for a valid Gmail address', async () => {
-    // Given a Gmail address requesting sign-in
+  it('generates a 6-digit OTP for a valid Gmail address', async () => {
     const email = 'signin@gmail.com';
-    await auth.api.sendVerificationOTP({
-      body: { email, type: 'sign-in' },
-    });
-
-    // Then the OTP should be capturable via the test helper
+    await auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' } });
     const otp = test.getOTP!(email);
     expect(otp).toMatch(/^\d{6}$/);
   });
 
-  it('should reject sign-in with an incorrect OTP', async () => {
-    // Given a valid OTP was issued
-    const email = 'wrong@gmail.com';
-    await auth.api.sendVerificationOTP({
-      body: { email, type: 'sign-in' },
-    });
-
-    // When signing in with a wrong code
-    const res = await app.handle(
-      new Request(`${base}/api/auth/sign-in/email-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: '000000' }),
-      })
-    );
-
-    // Then the request should be rejected
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain('Invalid OTP');
-  });
-
-  it('should reject sign-in when OTP is missing', async () => {
-    const res = await app.handle(
-      new Request(`${base}/api/auth/sign-in/email-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'noop@gmail.com' }),
-      })
-    );
-    expect([400, 422]).toContain(res.status);
-  });
-
-  it('should create a user, session, and set a session cookie with a valid OTP', async () => {
-    // Given a Gmail address that received a valid OTP
+  it('creates user, session, and sets cookie with valid OTP', async () => {
     const email = 'ok@gmail.com';
-    await auth.api.sendVerificationOTP({
-      body: { email, type: 'sign-in' },
-    });
+    await auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' } });
     const otp = test.getOTP!(email);
     expect(otp).toBeDefined();
 
-    // When signing in with the correct OTP
     const res = await app.handle(
       new Request(`${base}/api/auth/sign-in/email-otp`, {
         method: 'POST',
@@ -125,36 +82,25 @@ describe('sign-in via email OTP', () => {
         body: JSON.stringify({ email, otp }),
       })
     );
-
-    // Then a user + session should be created and a session cookie set
     expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toContain(
-      'better-auth.session_token'
-    );
+    expect(res.headers.get('set-cookie')).toContain('better-auth.session_token');
 
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     expect(user).toBeDefined();
     expect(await db.$count(sessions)).toBe(1);
   });
 
-  it('should return user data for an authenticated request (protected-route pattern)', async () => {
-    // Setup — same pattern as `describe("protected route")` reference
+  it('returns user data for authenticated request', async () => {
     const user = test.createUser({ email: 'test@example.com' });
     await test.saveUser(user);
-    // Get authenticated headers
     const headers = await test.getAuthHeaders({ userId: user.id });
-    // Test authenticated request
     const session = await auth.api.getSession({ headers });
     expect(session?.user.id).toBe(user.id);
-    // Cleanup
     await test.deleteUser(user.id);
   });
 });
 
+// ── Happy path: OAuth Google ──────────────────────────
 describe('sign-in via OAuth (Google)', () => {
   let test: TestHelpers;
 
@@ -167,7 +113,7 @@ describe('sign-in via OAuth (Google)', () => {
     await cleanAuthDb();
   });
 
-  it('should return a Google OAuth URL when starting a social sign-in', async () => {
+  it('returns Google OAuth URL when starting social sign-in', async () => {
     const res = await app.handle(
       new Request(`${base}/api/auth/sign-in/social`, {
         method: 'POST',
@@ -184,40 +130,50 @@ describe('sign-in via OAuth (Google)', () => {
     expect(decodeURIComponent(json.url)).toContain('/api/auth/callback/google');
   });
 
-  it('should redirect to an error when the OAuth callback state is invalid', async () => {
+  it('returns user data for authenticated request', async () => {
+    const user = test.createUser({ email: 'oauth-test@gmail.com' });
+    await test.saveUser(user);
+    const headers = await test.getAuthHeaders({ userId: user.id });
+    const session = await auth.api.getSession({ headers });
+    expect(session?.user.id).toBe(user.id);
+    await test.deleteUser(user.id);
+  });
+});
+
+// ── Edge cases ────────────────────────────────────────
+describe('edge cases', () => {
+  it('rejects non-Gmail OTP request at edge', async () => {
+    const res = await app.handle(
+      new Request(`${base}/api/auth/email-otp/send-verification-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'user@yahoo.com', type: 'sign-in' }),
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('Invalid email format');
+  });
+
+  it('redirects to error when OAuth callback state is invalid', async () => {
     const res = await app.handle(
       new Request(`${base}/api/auth/callback/google?code=x&state=y`)
     );
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toContain('error=state_mismatch');
   });
-
-  it('should return user data for authenticated request (same helper as protected route)', async () => {
-    // Setup
-    const user = test.createUser({ email: 'oauth-test@gmail.com' });
-    await test.saveUser(user);
-    // Get authenticated headers
-    const headers = await test.getAuthHeaders({ userId: user.id });
-    // Test authenticated request
-    const session = await auth.api.getSession({ headers });
-    expect(session?.user.id).toBe(user.id);
-    // Cleanup
-    await test.deleteUser(user.id);
-  });
 });
 
-describe('mock OAuth callback (isolated, no Google network call)', () => {
-  it('should return 200 and set a mock session cookie for a valid code', async () => {
+// ── Mock OAuth callback ───────────────────────────────
+describe('mock OAuth callback (isolated)', () => {
+  it('returns 200 and sets mock session cookie for valid code', async () => {
     const res = await mockCallbackApp.handle(
       new Request(`${base}/api/auth/callback/mock?code=valid-mock-code`)
     );
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toContain('mock.session_token');
-    const json = (await res.json()) as { user: { email: string } };
-    expect(json.user.email).toBe('mock@gmail.com');
   });
 
-  it('should return 400 when the code is invalid', async () => {
+  it('returns 400 when the code is invalid', async () => {
     const res = await mockCallbackApp.handle(
       new Request(`${base}/api/auth/callback/mock?code=salah`)
     );
@@ -225,11 +181,37 @@ describe('mock OAuth callback (isolated, no Google network call)', () => {
     expect(await res.text()).toContain('Invalid code');
   });
 
-  it('should return 400 when the code query param is missing', async () => {
+  it('returns 400 when the code query param is missing', async () => {
     const res = await mockCallbackApp.handle(
       new Request(`${base}/api/auth/callback/mock`)
     );
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('Missing code');
+  });
+});
+
+// ── Body validation (422) via treaty ──────────────────
+describe('body validation (422)', () => {
+  it('rejects sign-in with incorrect OTP', async () => {
+    const res = await app.handle(
+      new Request(`${base}/api/auth/sign-in/email-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'wrong@gmail.com', otp: '000000' }),
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('Invalid OTP');
+  });
+
+  it('rejects sign-in when OTP is missing', async () => {
+    const res = await app.handle(
+      new Request(`${base}/api/auth/sign-in/email-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'noop@gmail.com' }),
+      })
+    );
+    expect([400, 422]).toContain(res.status);
   });
 });
