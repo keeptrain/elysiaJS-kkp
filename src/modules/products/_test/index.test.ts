@@ -1,8 +1,8 @@
 // test/index.test.ts
 import { describe, expect, it } from 'bun:test';
-import { app } from '@/index';
+import { app, type App } from '@/index';
 
-const url = `${process.env.APP_URL}/products`;
+const url = `${process.env.APP_URL}/api/products`;
 
 describe('products/index Controller', () => {
   it('returns a response', async () => {
