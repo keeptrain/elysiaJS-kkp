@@ -14,7 +14,15 @@
 - Rate limit: in-memory 1 req/menit per IP (`InMemoryRateLimiter`, `publicMiddleware` global `onBeforeHandle`; mati saat `NODE_ENV=test`).
 - Docs OpenAPI Better Auth: hanya `RELEVANT_AUTH_PATHS` yang di-merge (`src/utils/openapi-utils.ts`, pin tipe OpenAPI 3.1 via `openapi-types` devDep).
 - Formatter: Prettier (`bun run format` / `format:check`).
-- Test runner: `bun test` langsung (bukan `bun run test` — script `test` di package.json hanya placeholder yang selalu gagal).
+
+## Test Standard (`*_test/*.test.ts`, contoh: `src/modules/admin/organizations/_test/index.test.ts`)
+
+- Lokasi: `<modul>/_test/*.test.ts`. Jalankan hanya folder modul tersebut (`bun test src/modules/admin/organizations/_test`), bukan full suite.
+- Struktur `describe`: `auth (401)` → `body validation (422)` → `happy path` → `edge cases`.
+- Route action-based: pakai `treaty(app).api` untuk body valid (type-safe per action); pakai `app.handle(new Request(...))` + JSON mentah untuk body invalid (422, bypass type treaty).
+- Auth di test: `test.createUser` + `saveUser` → `getAuthHeaders({ userId })` → konversi ke plain object (`Object.fromEntries(headers.entries())`) untuk treaty; `test.deleteUser` setelah selesai.
+- Cleanup: `beforeEach` hapus isi tabel modul + `cleanAuthDb()` bila sentuh tabel auth.
+- Ekspektasi status: `401` tanpa session, `422` body di luar union/kurang field, `404` data tidak ketemu (jangan return `null` — Elysia serialize jadi body kosong), `200` happy path.
 
 ## App Map (`src/`)
 

@@ -4,6 +4,7 @@ import { env } from '@/constants/env';
 import { betterAuthRouteHook, betterAuthView } from '@/modules/auth/utils';
 import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
 import { productsApp } from '@/modules/products';
+import { organizationsApp } from '@/modules/admin/organizations';
 import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
 import { authMiddleware } from '@/middleware/auth-middleware';
 
@@ -11,11 +12,11 @@ const publicRoutes = new Elysia()
   .use(corsPlugin)
   .use(ipRateLimiterMiddleware)
   .use(productsApp)
-  .all('/api/auth/*', betterAuthView, betterAuthRouteHook);
+  .all('/auth/*', betterAuthView, betterAuthRouteHook);
 
-export const protectedRoutes = new Elysia().use(authMiddleware);
+const protectedRoutes = new Elysia().use(authMiddleware).use(organizationsApp);
 
-export const app = new Elysia()
+export const app = new Elysia({ prefix: '/api' })
   .use(openapiPlugin)
   .use(publicRoutes)
   .use(protectedRoutes);
@@ -27,3 +28,5 @@ if (!env.isProduction) {
     `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
   );
 }
+
+export type App = typeof app;
