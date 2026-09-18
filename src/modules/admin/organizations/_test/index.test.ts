@@ -5,7 +5,7 @@ import { treaty } from '@elysia/eden';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import { organizations, userOrganizations } from '@/db/schema';
-import { cleanAuthDb } from '@/modules/auth/_test/utils';
+import { cleanAuthDb, createAdminUser } from '@/modules/auth/_test/utils';
 import type { OrganizationsAction } from '@/modules/admin/organizations';
 
 const api = treaty(app).api;
@@ -25,9 +25,9 @@ describe('organizations (action-based, type-safe)', () => {
     await db.delete(organizations);
   });
 
+  // Modul admin: user test selalu kind admin agar lolos kind macro.
   async function authed(email: string) {
-    const user = test.createUser({ email });
-    await test.saveUser(user);
+    const user = await createAdminUser(test, email);
     const raw = await test.getAuthHeaders({ userId: user.id });
     return {
       user,
@@ -40,6 +40,18 @@ describe('organizations (action-based, type-safe)', () => {
   it('rejects unauthenticated requests (401)', async () => {
     const { status } = await api.organizations.post({ action: 'list' });
     expect(status).toBe(401);
+  });
+
+  it('rejects non-admin kind (403)', async () => {
+    const user = test.createUser({ email: 'nonadmin@gmail.com' });
+    await test.saveUser(user);
+    const raw = await test.getAuthHeaders({ userId: user.id });
+    const { status } = await api.organizations.post(
+      { action: 'list' },
+      { headers: Object.fromEntries(raw.entries()) }
+    );
+    expect(status).toBe(403);
+    await test.deleteUser(user.id);
   });
 
   // ── Happy path ────────────────────────────────────────────

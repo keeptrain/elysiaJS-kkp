@@ -1,12 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
 import { Elysia } from 'elysia';
-import { randomUUIDv7 } from 'bun';
-import { eq } from 'drizzle-orm';
-import { db } from '@/lib/pg-db';
 import { auth } from '@/lib/auth';
-import { users } from '@/db/auth-schema';
-import { organizations, userOrganizations } from '@/db/schema';
 import {
   authMiddleware,
   kindMiddleware,
@@ -14,7 +9,11 @@ import {
   type KindRequirement,
   type OrgRequirement,
 } from '@/middleware/auth-middleware';
-import { cleanAuthDb } from '@/modules/auth/_test/utils';
+import { adminHeaders, cleanAuthDb } from '@/modules/auth/_test/utils';
+import {
+  cleanOrgDb,
+  createMemberUser,
+} from '@/modules/admin/organizations/_test/utils';
 
 const base = 'http://localhost:3000';
 
@@ -28,41 +27,20 @@ describe('kind + organization macro', () => {
 
   beforeEach(async () => {
     await cleanAuthDb();
-    await db.delete(userOrganizations);
-    await db.delete(organizations);
+    await cleanOrgDb();
   });
 
+  // Member UPT + headers sesi. Admin pusat pakai adminHeaders.
   async function memberHeaders(opts: {
     email: string;
     position?: string;
     roles?: string[];
-    kind?: 'admin' | 'organization';
   }) {
-    const user = test.createUser({ email: opts.email });
-    await test.saveUser(user);
-    if (opts.kind) {
-      await db
-        .update(users)
-        .set({ metadata: { kind: opts.kind } })
-        .where(eq(users.id, user.id));
-    }
-    if (opts.roles) {
-      const [org] = await db
-        .insert(organizations)
-        .values({
-          id: randomUUIDv7(),
-          name: 'UPT MW',
-          code: `UPTMW-${Date.now()}-${Math.random()}`,
-        })
-        .returning();
-      await db.insert(userOrganizations).values({
-        id: randomUUIDv7(),
-        userId: user.id,
-        organizationId: org.id,
-        position: opts.position ?? 'staff',
-        roles: opts.roles,
-      });
-    }
+    const { user } = await createMemberUser(test, {
+      email: opts.email,
+      position: opts.position,
+      roles: opts.roles ?? [],
+    });
     return test.getAuthHeaders({ userId: user.id });
   }
 
@@ -85,10 +63,10 @@ describe('kind + organization macro', () => {
   // ── Kind macro ────────────────────────────────────────────
   describe('kind macro', () => {
     it('200 untuk admin di kinds admin', async () => {
-      const headers = await memberHeaders({
-        email: `mw-admin-${Date.now()}@gmail.com`,
-        kind: 'admin',
-      });
+      const headers = await adminHeaders(
+        test,
+        `mw-admin-${Date.now()}@gmail.com`
+      );
       const res = await kindRoute({ kinds: ['admin'] }).handle(
         new Request(`${base}/mw`, { headers })
       );
@@ -167,10 +145,10 @@ describe('kind + organization macro', () => {
     });
 
     it('403 admin tanpa membership (tanpa bypass)', async () => {
-      const headers = await memberHeaders({
-        email: `mw-nobypass-${Date.now()}@gmail.com`,
-        kind: 'admin',
-      });
+      const headers = await adminHeaders(
+        test,
+        `mw-nobypass-${Date.now()}@gmail.com`
+      );
       const res = await orgRoute({ roles: ['shop_admin'] }).handle(
         new Request(`${base}/mw`, { headers })
       );

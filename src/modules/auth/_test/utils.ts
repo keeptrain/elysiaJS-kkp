@@ -1,4 +1,5 @@
 import type { TestHelpers } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import { db } from '@/lib/pg-db';
 import { accounts, sessions, users, verifications } from '@/db/auth-schema';
 
@@ -6,6 +7,24 @@ export async function createUser(test: TestHelpers, email?: string) {
   const user = email ? test.createUser({ email }) : test.createUser();
   await test.saveUser(user);
   return user;
+}
+
+// User pusat: metadata kind admin (lolos kind macro).
+export async function createAdminUser(test: TestHelpers, email?: string) {
+  const user = await createUser(test, email);
+  await db
+    .update(users)
+    .set({ metadata: { kind: 'admin' } })
+    .where(eq(users.id, user.id));
+  return user;
+}
+
+export async function adminHeaders(
+  test: TestHelpers,
+  email?: string
+): Promise<Headers> {
+  const user = await createAdminUser(test, email);
+  return test.getAuthHeaders({ userId: user.id });
 }
 
 export async function authedHeaders(
