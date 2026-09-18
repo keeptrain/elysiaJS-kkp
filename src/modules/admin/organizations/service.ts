@@ -1,14 +1,12 @@
 import { and, desc, eq, like } from 'drizzle-orm';
 import { randomUUIDv7 } from 'bun';
 import { db } from '@/lib/pg-db';
-import { redis } from '@/lib/bun-redis';
+import {
+  findMemberByUserId,
+  invalidateMemberCache,
+} from '@/modules/organizations/membership';
 import { organizations, userOrganizations } from '@/db/schema';
 import type { AppRole, OrganizationPosition } from '@/constants/access-control';
-
-// Cache-aside untuk membership (1 user = 1 UPT). TTL 300 dtk, invalidate
-// di setiap write (add/update/remove) agar tidak basi.
-const MEMBER_TTL = 300;
-const memberKey = (userId: string) => `member:${userId}`;
 
 export const organizationService = {
   async list(filters?: { search?: string }) {
@@ -73,29 +71,12 @@ export const organizationService = {
       .insert(userOrganizations)
       .values({ id: randomUUIDv7(), ...data })
       .returning();
-    await redis.del(memberKey(data.userId));
+    await invalidateMemberCache(data.userId);
     return member;
   },
 
-  // Dipakai hook get-session: cache-aside, miss → DB → isi cache.
-  async findMemberByUserId(userId: string) {
-    const cached = await redis.get(memberKey(userId));
-    if (cached)
-      return JSON.parse(cached) as typeof userOrganizations.$inferSelect;
-    const [member] = await db
-      .select()
-      .from(userOrganizations)
-      .where(eq(userOrganizations.userId, userId))
-      .limit(1);
-    if (member)
-      await redis.set(
-        memberKey(userId),
-        JSON.stringify(member),
-        'EX',
-        MEMBER_TTL
-      );
-    return member ?? null;
-  },
+  // Read didelegasikan ke modul umum (single source + cache).
+  findMemberByUserId,
 
   async updateMemberRole(
     userId: string,
@@ -112,7 +93,7 @@ export const organizationService = {
         )
       )
       .returning();
-    await redis.del(memberKey(userId));
+    await invalidateMemberCache(userId);
     return member ?? null;
   },
 
@@ -125,7 +106,7 @@ export const organizationService = {
           eq(userOrganizations.organizationId, organizationId)
         )
       );
-    await redis.del(memberKey(userId));
+    await invalidateMemberCache(userId);
     return { success: true };
   },
 };

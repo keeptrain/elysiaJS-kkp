@@ -4,7 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { emailOTP, openAPI, testUtils } from 'better-auth/plugins';
 import { randomUUIDv7 } from 'bun';
 import { db } from '@/lib/pg-db';
-import { organizationService } from '@/modules/admin/organizations/service';
+import { findMemberByUserId } from '@/modules/organizations/membership';
 import * as schema from '@/db/auth-schema';
 import { resendMailer } from '@/lib/resend-mailer';
 import { env } from '@/constants/env';
@@ -33,6 +33,7 @@ const strippedSessionFields = {
 const strippedUserFields = {
   emailVerified: { type: 'boolean', required: false, returned: false },
   image: { type: 'string', required: false, returned: false },
+  metadata: { type: 'json', required: false },
   createdAt: {
     type: 'date',
     required: true,
@@ -48,11 +49,6 @@ const strippedUserFields = {
   },
 } as const;
 
-// Jenis user. ATURAN: hanya kind, tidak pernah permissions.
-// Wajib returned: true agar hook + cookie cache melihatnya.
-const userMetadataFields = {
-  metadata: { type: 'json', required: false },
-} as const;
 // Organization hanya di RESPONSE get-session, tidak masuk cookie cache.
 // Cookie tetap ramping (session+user); org selalu fresh dari DB tiap panggil.
 const enrichGetSessionOrganization = createAuthMiddleware(async (ctx) => {
@@ -67,7 +63,7 @@ const enrichGetSessionOrganization = createAuthMiddleware(async (ctx) => {
     return;
   }
   // Lookup via service (cache-aside)
-  const member = await organizationService.findMemberByUserId(returned.user.id);
+  const member = await findMemberByUserId(returned.user.id);
   ctx.context.returned = {
     ...returned,
     organization: member
@@ -98,7 +94,6 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       ...strippedUserFields,
-      ...userMetadataFields,
     },
   },
   rateLimit: {
@@ -107,11 +102,6 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: 'app',
-    cookies: {
-      organization: {
-        name: 'test',
-      },
-    },
     database: {
       generateId: () => randomUUIDv7(),
     },
