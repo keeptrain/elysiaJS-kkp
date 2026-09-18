@@ -142,7 +142,7 @@ describe('organizations (action-based, type-safe)', () => {
           action: 'addMember',
           userId: memberUser.id,
           organizationId: orgId,
-          role: 'operator',
+          roles: ['shop_operator'],
         },
         { headers }
       );
@@ -160,12 +160,14 @@ describe('organizations (action-based, type-safe)', () => {
           action: 'updateMemberRole',
           userId: memberUser.id,
           organizationId: orgId,
-          role: 'admin_upt',
+          roles: ['shop_admin'],
         },
         { headers }
       );
       expect(roleUpdated.status).toBe(200);
-      expect((roleUpdated.data as { role: string }).role).toBe('admin_upt');
+      expect((roleUpdated.data as { roles: string[] }).roles).toEqual([
+        'shop_admin',
+      ]);
 
       const removed = await api.organizations.post(
         {
@@ -187,7 +189,7 @@ describe('organizations (action-based, type-safe)', () => {
       await cleanup();
     });
 
-    it('rejects duplicate membership (1 user 1 role per UPT)', async () => {
+    it('rejects duplicate membership (1 row per user per UPT)', async () => {
       const { headers, cleanup } = await authed('m2@gmail.com');
 
       const created = await api.organizations.post(
@@ -204,7 +206,7 @@ describe('organizations (action-based, type-safe)', () => {
           action: 'addMember',
           userId: memberUser.id,
           organizationId: orgId,
-          role: 'viewer',
+          roles: ['shop_operator'],
         },
         { headers }
       );
@@ -215,7 +217,7 @@ describe('organizations (action-based, type-safe)', () => {
           action: 'addMember',
           userId: memberUser.id,
           organizationId: orgId,
-          role: 'operator',
+          roles: ['magang_operator'],
         },
         { headers }
       );
@@ -295,7 +297,7 @@ describe('organizations (action-based, type-safe)', () => {
       await cleanup();
     });
 
-    it('rejects addMember without role', async () => {
+    it('rejects addMember without roles', async () => {
       const { headers, cleanup } = await authed('v6@gmail.com');
       const { status } = await api.organizations.post(
         {

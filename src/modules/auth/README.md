@@ -48,8 +48,53 @@ Hanya 6 path di atas yang aktif (`enabledPaths` di `src/lib/auth.ts`,
 daftar di `src/constants/routes.ts`). Endpoint lain (sign-up email,
 reset password, dsb) return 404 (`disabledPaths`).
 
+## Cookie spec
+
+- app
+  - app.session.data
+    Key: WRcIqH0W8FrtmHVXKEvRQDwXKKjBAfcT (cookie: "app.session_token")
+
+  ```json
+  {
+    "session": {
+      "id": "rvoKVrwmvbWYSW5WnWnxjxtMfdf7EJeW",
+      // "ipAddress": "",
+      // "userAgent": "",
+      "expiresAt": "2026-09-18T23:28:27.114Z",
+      // "userId": "0B3JuTZL93txDGeBKZ2vnw8KvcCLZEnA",
+      "token": "WRcIqH0W8FrtmHVXKEvRQDwXKKjBAfcT"
+      // "createdAt": "2026-09-17T23:28:27.114Z",
+      // "updatedAt": "2026-09-17T23:28:27.114Z"
+    },
+    "user": {
+      "name": "Test User",
+      "email": "guard@gmail.com",
+      // "emailVerified": true,
+      // "image": null,
+      // "createdAt": "2026-09-17T23:28:27.112Z",
+      // "updatedAt": "2026-09-17T23:28:27.112Z",
+      "id": "0B3JuTZL93txDGeBKZ2vnw8KvcCLZEnA"
+    }
+  }
+  ```
+
+- app.session
+
+  ```json
+  [
+    {
+      "token": "WRcIqH0W8FrtmHVXKEvRQDwXKKjBAfcT",
+      "expiresAt": 1789774107114
+    }
+  ]
+  ```
+
 ## Aturan
 
 - Hanya email `@gmail.com` (`betterAuthView` di `utils.ts`).
 - Session cookie bernama `session`, umur 1 hari + cache 5 menit.
 - Docs OpenAPI hanya tampilkan path relevan (`RELEVANT_AUTH_PATHS`).
+
+```
+
+```

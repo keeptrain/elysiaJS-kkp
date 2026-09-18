@@ -28,7 +28,8 @@ export const userOrganizations = pgTable(
     organizationId: text('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    role: text('role').notNull(), // 'admin_upt' | 'operator' | 'viewer'
+    position: text('position').notNull().default('staff'),
+    roles: text('roles').array().notNull().default([]),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [

@@ -1,15 +1,21 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
 import { Elysia } from 'elysia';
+import { randomUUIDv7 } from 'bun';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/pg-db';
 import { auth } from '@/lib/auth';
-import { sessions } from '@/db/auth-schema';
+import { sessions, users } from '@/db/auth-schema';
+import { organizations, userOrganizations } from '@/db/schema';
 import { app } from '@/index';
 import { authMiddleware } from '@/middleware/auth-middleware';
-import { cleanAuthDb, withJson } from './utils';
+import { authedHeaders, cleanAuthDb, withJson } from './utils';
 
 const base = 'http://localhost:3000';
+
+// NOTE: treaty tidak support Better Auth catch-all routes (return 404),
+// jadi HTTP call di file ini pakai app.handle (lihat AGENTS.MD).
+// Session 100% di Postgres (secondaryStorage tidak dipasang) + cookieCache 5 menit.
 
 describe('session lifecycle', () => {
   let test: TestHelpers;
@@ -21,104 +27,293 @@ describe('session lifecycle', () => {
 
   beforeEach(async () => {
     await cleanAuthDb();
+    await db.delete(userOrganizations);
+    await db.delete(organizations);
   });
 
-  /** Create a persisted user + session and return headers that carry the session cookie. */
-  async function authedHeaders(email: string): Promise<Headers> {
-    const user = test.createUser({ email });
-    await test.saveUser(user);
-    return test.getAuthHeaders({ userId: user.id });
-  }
+  // ── Happy path ────────────────────────────────────────────
+  describe('happy path', () => {
+    it('returns the authenticated user via server API and HTTP endpoint', async () => {
+      const email = 'session@gmail.com';
+      const headers = await authedHeaders(test, email);
 
-  it('should return null when no session cookie is present', async () => {
-    const res = await app.handle(
-      new Request(`${base}/api/auth/get-session`, {
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toBeNull();
+      const viaApi = await auth.api.getSession({ headers });
+      expect(viaApi?.user.email).toBe(email);
+
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session`, { headers })
+      );
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        user: { email: string };
+        session: { token: string };
+      };
+      expect(json.user.email).toBe(email);
+      expect(json.session.token).toBeDefined();
+    });
+
+    it('returns organization in get-session response (not in cookie)', async () => {
+      const email = `org-${Date.now()}@gmail.com`;
+      const user = test.createUser({ email });
+      await test.saveUser(user);
+      const [org] = await db
+        .insert(organizations)
+        .values({
+          id: randomUUIDv7(),
+          name: 'UPT Test',
+          code: `UPT-${Date.now()}`,
+        })
+        .returning();
+      await db.insert(userOrganizations).values({
+        id: randomUUIDv7(),
+        userId: user.id,
+        organizationId: org.id,
+        position: 'head',
+        roles: ['shop_admin'],
+      });
+
+      const { headers } = await test.login({ userId: user.id });
+      const sess = (await auth.api.getSession({ headers })) as unknown as {
+        session: { organizationId?: string };
+        organization: {
+          id: string;
+          position: string;
+          roles: string[];
+        } | null;
+      };
+      // Tidak masuk session/cookie — hanya di response
+      expect(sess.session.organizationId).toBeUndefined();
+      expect(sess.organization).toEqual({
+        id: org.id,
+        position: 'head',
+        roles: ['shop_admin'],
+      });
+
+      // Via HTTP juga ada
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session`, { headers })
+      );
+      const json = (await res.json()) as {
+        organization: { id: string };
+      };
+      expect(json.organization.id).toBe(org.id);
+    });
+
+    it('reflects membership changes immediately (no stale snapshot)', async () => {
+      const email = `org-fresh-${Date.now()}@gmail.com`;
+      const user = test.createUser({ email });
+      await test.saveUser(user);
+      const [org] = await db
+        .insert(organizations)
+        .values({
+          id: randomUUIDv7(),
+          name: 'UPT Fresh',
+          code: `UPTF-${Date.now()}`,
+        })
+        .returning();
+      const { headers } = await test.login({ userId: user.id });
+
+      const before = (await auth.api.getSession({ headers })) as unknown as {
+        organization: unknown;
+      };
+      expect(before.organization).toBeNull();
+
+      await db.insert(userOrganizations).values({
+        id: randomUUIDv7(),
+        userId: user.id,
+        organizationId: org.id,
+        position: 'staff',
+        roles: ['shop_operator'],
+      });
+
+      const after = (await auth.api.getSession({ headers })) as unknown as {
+        organization: { id: string; roles: string[] };
+      };
+      expect(after.organization).toEqual({
+        id: org.id,
+        position: 'staff',
+        roles: ['shop_operator'],
+      });
+    });
+
+    it('sets token + data cookies on real HTTP OTP sign-in', async () => {
+      const email = `real-otp-${Date.now()}@gmail.com`;
+
+      const send = await app.handle(
+        new Request(`${base}/api/auth/email-otp/send-verification-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, type: 'sign-in' }),
+        })
+      );
+      expect(send.status).toBe(200);
+
+      const otp = test.getOTP!(email);
+      const signIn = await app.handle(
+        new Request(`${base}/api/auth/sign-in/email-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp }),
+        })
+      );
+      expect(signIn.status).toBe(200);
+
+      const setCookies = signIn.headers.getSetCookie();
+      expect(setCookies.some((c) => c.startsWith('app.session_token='))).toBe(
+        true
+      );
+      expect(setCookies.some((c) => c.startsWith('app.session_data='))).toBe(
+        true
+      );
+    });
+
+    it('serves get-session from cookie cache, fresh from DB with disableCookieCache', async () => {
+      const email = `cache-${Date.now()}@gmail.com`;
+      const send = await app.handle(
+        new Request(`${base}/api/auth/email-otp/send-verification-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, type: 'sign-in' }),
+        })
+      );
+      expect(send.status).toBe(200);
+      const signIn = await app.handle(
+        new Request(`${base}/api/auth/sign-in/email-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp: test.getOTP!(email) }),
+        })
+      );
+      expect(signIn.status).toBe(200);
+      const cookie = signIn.headers
+        .getSetCookie()
+        .map((c) => c.split(';')[0])
+        .join('; ');
+
+      await db
+        .update(users)
+        .set({ name: 'changed' })
+        .where(eq(users.email, email));
+
+      const cached = await app.handle(
+        new Request(`${base}/api/auth/get-session`, {
+          headers: { cookie },
+        })
+      );
+      const cachedJson = (await cached.json()) as { user: { name: string } };
+      expect(cachedJson.user.name).not.toBe('changed');
+
+      const fresh = await app.handle(
+        new Request(`${base}/api/auth/get-session?disableCookieCache=true`, {
+          headers: { cookie },
+        })
+      );
+      const freshJson = (await fresh.json()) as { user: { name: string } };
+      expect(freshJson.user.name).toBe('changed');
+    });
+
+    it('deletes the DB session on sign-out so get-session returns null', async () => {
+      const headers = await authedHeaders(test, 'signout@gmail.com');
+      expect(await db.$count(sessions)).toBe(1);
+
+      const outRes = await app.handle(
+        new Request(`${base}/api/auth/sign-out`, {
+          method: 'POST',
+          headers: withJson(headers),
+        })
+      );
+      expect(outRes.status).toBe(200);
+      expect(await db.$count(sessions)).toBe(0);
+
+      const after = await app.handle(
+        new Request(`${base}/api/auth/get-session?disableCookieCache=true`, {
+          headers: withJson(headers),
+        })
+      );
+      expect(await after.json()).toBeNull();
+    });
   });
 
-  it('should return null when the session token is invalid', async () => {
-    const res = await app.handle(
-      new Request(`${base}/api/auth/get-session`, {
-        headers: {
-          'Content-Type': 'application/json',
-          cookie: 'session=invalid',
-        },
-      })
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toBeNull();
-  });
+  // ── Bad path ──────────────────────────────────────────────
+  describe('bad path', () => {
+    it('returns null when no session cookie is present', async () => {
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session`, {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toBeNull();
+    });
 
-  it('should return the authenticated user via both server API and HTTP endpoint', async () => {
-    // Given an authenticated user
-    const email = 'session@gmail.com';
-    const headers = await authedHeaders(email);
+    it('returns null when the session token is invalid', async () => {
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session`, {
+          headers: {
+            'Content-Type': 'application/json',
+            cookie: 'app.session_token=invalid',
+          },
+        })
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toBeNull();
+    });
 
-    // When the session is read via the server-side API (official docs pattern)
-    const viaApi = await auth.api.getSession({ headers });
-    expect(viaApi?.user.email).toBe(email);
+    it('falls back to DB when the data cookie is tampered', async () => {
+      const email = 'tamper@gmail.com';
+      const headers = await authedHeaders(test, email);
 
-    // And via the HTTP route
-    const res = await app.handle(
-      new Request(`${base}/api/auth/get-session`, { headers })
-    );
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as {
-      user: { email: string };
-      session: { token: string };
-    };
-    expect(json.user.email).toBe(email);
-    expect(json.session.token).toBeDefined();
-  });
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session`, {
+          headers: withJson(
+            new Headers([
+              ...headers.entries(),
+              ['cookie', 'app.session_data=tampered'],
+            ])
+          ),
+        })
+      );
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { user: { email: string } };
+      expect(json.user.email).toBe(email);
+    });
 
-  it('should delete the DB session on sign-out so subsequent get-session returns null', async () => {
-    // Given a signed-in user
-    const headers = await authedHeaders('signout@gmail.com');
-    expect(await db.$count(sessions)).toBe(1);
+    it('deletes an expired session and treats it as unauthenticated', async () => {
+      const user = test.createUser({ email: 'expired@gmail.com' });
+      await test.saveUser(user);
+      const { headers, session } = await test.login({ userId: user.id });
+      await db
+        .update(sessions)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(sessions.id, session.id));
 
-    // When signing out
-    const outRes = await app.handle(
-      new Request(`${base}/api/auth/sign-out`, {
-        method: 'POST',
-        headers: withJson(headers),
-      })
-    );
-    expect(outRes.status).toBe(200);
-    expect(await db.$count(sessions)).toBe(0);
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session?disableCookieCache=true`, {
+          headers,
+        })
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toBeNull();
+      expect(await db.$count(sessions)).toBe(0);
+    });
 
-    // Then get-session must be null — bypass 5-minute cookieCache to hit DB directly
-    const after = await app.handle(
-      new Request(`${base}/api/auth/get-session?disableCookieCache=true`, {
-        headers: withJson(headers),
-      })
-    );
-    expect(await after.json()).toBeNull();
-  });
+    it('returns null for a revoked token after sign-out', async () => {
+      const headers = await authedHeaders(test, 'revoked@gmail.com');
+      await app.handle(
+        new Request(`${base}/api/auth/sign-out`, {
+          method: 'POST',
+          headers: withJson(headers),
+        })
+      );
 
-  it('should treat an expired DB session as unauthenticated', async () => {
-    // Given a user whose session was manually expired in DB
-    const user = test.createUser({ email: 'expired@gmail.com' });
-    await test.saveUser(user);
-    const { headers, session } = await test.login({ userId: user.id });
-    await db
-      .update(sessions)
-      .set({ expiresAt: new Date(Date.now() - 1000) })
-      .where(eq(sessions.id, session.id));
-
-    // When reading the session bypassing the 5-minute cookieCache
-    const res = await app.handle(
-      new Request(`${base}/api/auth/get-session?disableCookieCache=true`, {
-        headers,
-      })
-    );
-
-    // Then it should be considered unauthenticated
-    expect(res.status).toBe(200);
-    expect(await res.json()).toBeNull();
+      const res = await app.handle(
+        new Request(`${base}/api/auth/get-session?disableCookieCache=true`, {
+          headers: withJson(headers),
+        })
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toBeNull();
+    });
   });
 });
 
@@ -134,36 +329,24 @@ describe('protected route', () => {
     await cleanAuthDb();
   });
 
-  it('should return user data for authenticated request', async () => {
-    // Setup
-    const user = test.createUser({ email: 'test@example.com' });
-    await test.saveUser(user);
-    // Get authenticated headers
-    const headers = await test.getAuthHeaders({ userId: user.id });
-    // Test authenticated request
-    const session = await auth.api.getSession({ headers });
-    expect(session?.user.id).toBe(user.id);
-    // Cleanup
-    await test.deleteUser(user.id);
-  });
-
-  it('should respond 401 without a session and 200 with a valid session', async () => {
+  it('responds 200 with a valid session', async () => {
     const route = new Elysia()
       .use(authMiddleware)
       .get('/protected', ({ userId }) => userId);
 
-    // Unauthenticated → 401
-    const anon = await route.handle(new Request(`${base}/protected`));
-    expect(anon.status).toBe(401);
-
-    // Authenticated → 200 and returns the user id
-    const user = test.createUser({ email: 'guard@gmail.com' });
-    await test.saveUser(user);
-    const headers = await test.getAuthHeaders({ userId: user.id });
+    const headers = await authedHeaders(test, 'guard@gmail.com');
     const authed = await route.handle(
       new Request(`${base}/protected`, { headers })
     );
     expect(authed.status).toBe(200);
-    expect(await authed.text()).toBe(user.id);
+  });
+
+  it('responds 401 without a session', async () => {
+    const route = new Elysia()
+      .use(authMiddleware)
+      .get('/protected', ({ userId }) => userId);
+
+    const anon = await route.handle(new Request(`${base}/protected`));
+    expect(anon.status).toBe(401);
   });
 });

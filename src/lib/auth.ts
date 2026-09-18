@@ -1,7 +1,10 @@
 import { betterAuth } from 'better-auth/minimal';
+import { createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { emailOTP, openAPI, testUtils } from 'better-auth/plugins';
+import { randomUUIDv7 } from 'bun';
 import { db } from '@/lib/pg-db';
+import { organizationService } from '@/modules/admin/organizations/service';
 import * as schema from '@/db/auth-schema';
 import { resendMailer } from '@/lib/resend-mailer';
 import { env } from '@/constants/env';
@@ -9,6 +12,73 @@ import {
   betterAuthEnabledPaths,
   betterAuthDisabledPaths,
 } from '@/constants/routes';
+
+const strippedSessionFields = {
+  createdAt: {
+    type: 'date',
+    required: true,
+    returned: false,
+    defaultValue: () => new Date(),
+  },
+  updatedAt: {
+    type: 'date',
+    required: true,
+    returned: false,
+    onUpdate: () => new Date(),
+  },
+  ipAddress: { type: 'string', required: false, returned: false },
+  userAgent: { type: 'string', required: false, returned: false },
+} as const;
+
+const strippedUserFields = {
+  emailVerified: { type: 'boolean', required: false, returned: false },
+  image: { type: 'string', required: false, returned: false },
+  createdAt: {
+    type: 'date',
+    required: true,
+    returned: false,
+    defaultValue: () => new Date(),
+  },
+  updatedAt: {
+    type: 'date',
+    required: true,
+    returned: false,
+    defaultValue: () => new Date(),
+    onUpdate: () => new Date(),
+  },
+} as const;
+
+// Jenis user. ATURAN: hanya kind, tidak pernah permissions.
+// Wajib returned: true agar hook + cookie cache melihatnya.
+const userMetadataFields = {
+  metadata: { type: 'json', required: false },
+} as const;
+// Organization hanya di RESPONSE get-session, tidak masuk cookie cache.
+// Cookie tetap ramping (session+user); org selalu fresh dari DB tiap panggil.
+const enrichGetSessionOrganization = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== '/get-session') return;
+  const returned = ctx.context.returned as {
+    user: { id: string; metadata?: { kind?: string } | null };
+  } | null;
+  if (!returned) return;
+  // skip join , when user.metadata is not organization
+  if (returned.user.metadata?.kind === 'admin') {
+    ctx.context.returned = { ...returned, organization: null };
+    return;
+  }
+  // Lookup via service (cache-aside)
+  const member = await organizationService.findMemberByUserId(returned.user.id);
+  ctx.context.returned = {
+    ...returned,
+    organization: member
+      ? {
+          id: member.organizationId,
+          position: member.position,
+          roles: member.roles,
+        }
+      : null,
+  };
+});
 
 export const auth = betterAuth({
   baseURL: env.APP_URL,
@@ -18,14 +88,32 @@ export const auth = betterAuth({
     schema,
     usePlural: true,
   }),
+  session: {
+    expiresIn: 604800, // 7 days
+    cookieCache: { enabled: true, maxAge: 300, version: '1' }, // 5 minutes
+    additionalFields: {
+      ...strippedSessionFields,
+    },
+  },
+  user: {
+    additionalFields: {
+      ...strippedUserFields,
+      ...userMetadataFields,
+    },
+  },
   rateLimit: {
     window: 60,
     max: 120,
   },
-  socialProviders: {
-    google: {
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
+  advanced: {
+    cookiePrefix: 'app',
+    cookies: {
+      organization: {
+        name: 'test',
+      },
+    },
+    database: {
+      generateId: () => randomUUIDv7(),
     },
   },
   plugins: [
@@ -48,18 +136,18 @@ export const auth = betterAuth({
       },
     }),
   ],
-  cookies: {
-    sessionToken: {
-      name: 'session',
+  socialProviders: {
+    google: {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
     },
-  },
-  session: {
-    expiresIn: 86400,
-    cookieCache: { enabled: true, maxAge: 300 },
   },
   trustedOrigins: env.CORS_ORIGIN_ALLOWED,
   enabledPaths: betterAuthEnabledPaths,
   disabledPaths: betterAuthDisabledPaths as unknown as string[],
+  hooks: {
+    after: enrichGetSessionOrganization,
+  },
 });
 
 export type Auth = typeof auth;

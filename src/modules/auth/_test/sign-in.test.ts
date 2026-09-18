@@ -35,19 +35,6 @@ export const mockCallbackApp = new Elysia().get(
   }
 );
 
-async function authedHeaders(email: string) {
-  const ctx = await auth.$context;
-  const test = ctx.test;
-  const user = test.createUser({ email });
-  await test.saveUser(user);
-  const raw = await test.getAuthHeaders({ userId: user.id });
-  const userId = user.id;
-  return {
-    headers: Object.fromEntries(raw.entries()),
-    cleanup: async () => { await test.deleteUser(userId); },
-  };
-}
-
 // ── Happy path: email OTP ─────────────────────────────
 describe('sign-in via email OTP', () => {
   let test: TestHelpers;
@@ -85,7 +72,11 @@ describe('sign-in via email OTP', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toContain('session');
 
-    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
     expect(user).toBeDefined();
     expect(await db.$count(sessions)).toBe(1);
   });

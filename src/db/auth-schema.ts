@@ -1,11 +1,25 @@
-import { pgTable, text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  index,
+  jsonb,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
+  // Jenis user. ATURAN: hanya kind, tidak pernah permissions.
+  // null = user organisasi (resolve via userOrganizations).
+  // { kind: 'admin' } = orang pusat (skip JOIN).
+  metadata: jsonb('metadata').$type<{
+    kind?: 'admin' | 'organization';
+  } | null>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at')
     .defaultNow()
