@@ -1,20 +1,43 @@
-import { integer, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  timestamp,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
+import { users } from '@/db/auth-schema';
 
-// NOTE: sessions tidak lagi di DB — pakai SessionStore (src/lib/session-store.ts,
-// saat ini in-memory, siap diganti Upstash/Redis).
-export const usersTable = pgTable('users', {
-  id: varchar({ length: 36 }).primaryKey(),
-  email: varchar({ length: 254 }).notNull().unique(),
-  createdAt: timestamp({ mode: 'string' }).notNull().defaultNow(),
-  updatedAt: timestamp({ mode: 'string' }).notNull().defaultNow(),
+export const organizations = pgTable('organizations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull().unique(), // kode UPT (misal: "UPT-PUSKESMAS-01")
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 });
 
-export const otpsTable = pgTable('otps', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  email: varchar({ length: 254 }).notNull(),
-  code: varchar({ length: 6 }).notNull(),
-  isUsed: integer().notNull().default(0),
-  attempts: integer().notNull().default(0),
-  expiresAt: timestamp({ mode: 'string' }).notNull(),
-  createdAt: timestamp({ mode: 'string' }).notNull().defaultNow(),
-});
+export const userOrganizations = pgTable(
+  'user_organizations',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    position: text('position').notNull().default('staff'),
+    roles: text('roles').array().notNull().default([]),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('user_organizations_userId_idx').on(table.userId),
+    index('user_organizations_organizationId_idx').on(table.organizationId),
+    uniqueIndex('user_organizations_userId_organizationId_idx').on(
+      table.userId,
+      table.organizationId
+    ),
+  ]
+);

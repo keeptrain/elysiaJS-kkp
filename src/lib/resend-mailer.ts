@@ -1,5 +1,5 @@
 import { CreateEmailOptions, Resend } from 'resend';
-import { isProduction } from '../utils/env';
+import { env } from '@/constants/env';
 
 // Top-level singleton — 1x allocation
 const resend = new Resend(process.env.RESEND_API_KEY!);
@@ -11,7 +11,7 @@ export const resendMailer = async (
 ): Promise<boolean> => {
   const template = ResendMailerTemplate.sendOtp(email, code, expiresInMinutes);
 
-  if (!isProduction) {
+  if (!env.isProduction) {
     await bunWriteMail(email, template.html);
     return true;
   }
@@ -43,7 +43,7 @@ abstract class ResendMailerTemplate {
 }
 
 async function bunWriteMail(email: string, html: string | undefined) {
-  const dir = 'src/modules/auth/login/_test/otp-mail';
+  const dir = 'tmp/otp-mail';
   await Bun.$`mkdir -p ${dir}`.quiet();
   const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, '_');
   const nameFile = `${Date.now()}-${safeEmail}-otp.html`;
