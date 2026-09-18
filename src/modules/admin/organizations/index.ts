@@ -1,7 +1,7 @@
 import { Elysia, status, t } from 'elysia';
 import { organizationService } from './service';
 import type { AppRole, OrganizationPosition } from '@/constants/access-control';
-import { authMiddleware } from '@/middleware/auth-middleware';
+import { authMiddleware, kindMiddleware } from '@/middleware/auth-middleware';
 
 const actionBody = t.Union([
   t.Object({
@@ -52,6 +52,7 @@ export const organizationsApp = new Elysia({
   detail: { tags: ['organizations'], hide: true },
 })
   .use(authMiddleware)
+  .use(kindMiddleware)
   .post(
     '',
     async ({ body }) => {
@@ -109,5 +110,5 @@ export const organizationsApp = new Elysia({
           );
       }
     },
-    { body: actionBody }
+    { body: actionBody, kind: { kinds: ['admin'] } }
   );

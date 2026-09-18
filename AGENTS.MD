@@ -17,7 +17,7 @@
 
 ## Test Standard (`*_test/*.test.ts`, contoh: `src/modules/admin/organizations/_test/index.test.ts`)
 
-- Lokasi: `<modul>/_test/*.test.ts`. Jalankan hanya folder modul tersebut (`bun test src/modules/admin/organizations/_test`), bukan full suite.
+- Lokasi: `<modul>/_test/*.test.ts`. Jalankan hanya folder/file modul yang diubah (`bun test src/modules/admin/organizations/_test`), JANGAN full suite / multi-modul — setiap run memakan kuota request Upstash Redis.
 - Struktur `describe`: `happy path` → `edge cases` → `body validation (422)`.
 - 401 (auth) sudah dicover oleh `auth-middleware.test.ts`, tidak perlu ulang di setiap modul.
 - Route action-based: pakai `treaty(app).api` untuk body valid (type-safe per action); pakai `app.handle(new Request(...))` + JSON mentah untuk body invalid (422, bypass type treaty). **Catatan: treaty tidak support Better Auth catch-all routes** — untuk route `.all('/api/auth/*', ...)` tetap pakai `app.handle` dengan `new Request(...)`.
