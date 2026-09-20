@@ -15,9 +15,7 @@ export const openapiPlugin = openapi({
     info: {
       title: 'KKP API',
       version: '1.0.0',
-      description:
-        'Dokumentasi route Elysia + Better Auth. ' +
-        'Coba interaktif juga tersedia di `/api/auth/reference`.',
+      description: 'API Documentations',
     },
     tags: [{ name: 'auth', description: 'Autentikasi (Better Auth)' }],
     paths: await OpenAPI.getPaths(),
