@@ -1,9 +1,8 @@
-import Elysia from 'elysia';
+import Elysia, { t } from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
-import { getMySqlColumnBuilders } from 'drizzle-orm/mysql-core/columns/all';
+import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 import { CursorPaginationQuery } from './model';
 import { organizationService } from './service';
-import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 
 export const organizationRoutes = new Elysia({
   prefix: '/organizations',
@@ -29,4 +28,9 @@ export const organizationRoutes = new Elysia({
         positions: ['head'],
       },
     }
-  );
+  )
+  .post('abc', () => 'ok', {
+    query: t.Object({
+      search: t.String({ minLength: 3 }),
+    }),
+  });

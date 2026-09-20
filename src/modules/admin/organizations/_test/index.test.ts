@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import type { TestHelpers } from 'better-auth/plugins';
-import { app } from '@/index';
 import { treaty } from '@elysia/eden';
+import type { TestHelpers } from 'better-auth/plugins';
+import { organizations, userOrganizations } from '@/db/schema';
+import { app } from '@/index';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
-import { organizations, userOrganizations } from '@/db/schema';
-import { cleanAuthDb, createAdminUser } from '@/modules/auth/_test/utils';
 import type { OrganizationsAction } from '@/modules/admin/organizations';
+import { cleanAuthDb, createAdminUser } from '@/modules/auth/_test/utils';
 
 const api = treaty(app).api;
 type ActionBody = OrganizationsAction;
@@ -35,6 +35,10 @@ describe('organizations (action-based, type-safe)', () => {
       cleanup: () => test.deleteUser(user.id),
     };
   }
+
+  describe('success - organizations', () => {
+    it('should return correct response', async () => {});
+  });
 
   // ── Auth ──────────────────────────────────────────────────
   it('rejects unauthenticated requests (401)', async () => {

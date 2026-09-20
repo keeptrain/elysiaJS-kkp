@@ -1,9 +1,9 @@
+import type { TestHelpers } from 'better-auth/plugins';
+import { randomUUIDv7 } from 'bun';
+import { seed } from 'drizzle-seed';
 import { organizations, userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import { createUser } from '@/modules/auth/_test/utils';
-import { TestHelpers } from 'better-auth/plugins';
-import { randomUUIDv7 } from 'bun';
-import { seed } from 'drizzle-seed';
 
 export async function createOrganization(name = 'Test Organization') {
   await seed(db, { organizations }, { count: 1 }).refine((funcs) => ({

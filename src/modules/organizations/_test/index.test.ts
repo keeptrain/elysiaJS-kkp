@@ -1,13 +1,13 @@
-import { userOrganizations, organizations } from '@/db/schema';
-import { auth } from '@/lib/auth';
-import { db } from '@/lib/pg-db';
-import { TestHelpers } from 'better-auth/plugins';
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { reset } from 'drizzle-seed';
-import { createMembers } from './utils';
 import { treaty } from '@elysia/eden';
+import type { TestHelpers } from 'better-auth/plugins';
+import { reset } from 'drizzle-seed';
 import { app } from '@/app';
 import { auths } from '@/db/auth-schema';
+import { organizations, userOrganizations } from '@/db/schema';
+import { auth } from '@/lib/auth';
+import { db } from '@/lib/pg-db';
+import { createMembers } from './utils';
 
 const api = treaty(app).api;
 
@@ -23,7 +23,7 @@ describe('Organization Integration', () => {
     await reset(db, { ...auths, organizations, userOrganizations });
   });
 
-  describe('Success', () => {
+  describe('success - organization users', () => {
     it('should return correct response', async () => {
       const members = await createMembers(test, 5);
       const headMemberUserId = members.members.find(
@@ -38,14 +38,20 @@ describe('Organization Integration', () => {
       const response = await api.organizations.my.get({
         headers: authHeaders,
       });
-      console.log(response);
       expect(response.status).toBe(200);
       expect(response.data?.items).toHaveLength(5);
     });
   });
 
   describe('Authorization', () => {
-    it('should return 403 if user is not a member of the organization', async () => {});
+    it('should return 403 if user is not a head position in organization', async () => {
+      const response = await api.organizations.abc.post(
+        {},
+        { query: { search: 't' } }
+      );
+
+      console.log(response);
+    });
   });
 
   describe('Validation', () => {

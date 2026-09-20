@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { randomUUIDv7 } from 'bun';
 import type { TestHelpers } from 'better-auth/plugins';
-import { reset, seed } from 'drizzle-seed';
+import { randomUUIDv7 } from 'bun';
+import { reset } from 'drizzle-seed';
+import { organizations, userOrganizations } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
-import { organizations, userOrganizations } from '@/db/schema';
 import { cleanAuthDb } from '@/modules/auth/_test/utils';
 import { organizationService } from '@/modules/organizations/service';
 import { createMembers, createOrganization } from './utils';

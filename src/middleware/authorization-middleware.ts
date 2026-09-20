@@ -1,5 +1,4 @@
-import Elysia, { status, t, type Static } from 'elysia';
-import type { SessionWithOrg } from './auth-middleware';
+import Elysia, { type Static, status, t } from 'elysia';
 import {
   MAGANG_ROLES,
   MARKETPLACE_ROLES,
@@ -7,6 +6,7 @@ import {
   OrganizationPosition,
   ROLES,
 } from '@/constants/access-control';
+import type { SessionWithOrg } from './auth-middleware';
 
 const chainedSession = {
   decorator: {},
