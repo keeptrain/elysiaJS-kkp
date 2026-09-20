@@ -1,9 +1,0 @@
-node_modules
-bun.lock
-dist
-build
-coverage
-.next
-out
-.git
-*.min.js
