@@ -15,15 +15,30 @@
 - Docs OpenAPI Better Auth: hanya `RELEVANT_AUTH_PATHS` yang di-merge (`src/utils/openapi-utils.ts`, pin tipe OpenAPI 3.1 via `openapi-types` devDep).
 - Formatter: Prettier (`bun run format` / `format:check`).
 
-## Test Standard (`*_test/*.test.ts`, contoh: `src/modules/admin/organizations/_test/index.test.ts`)
+## Test
 
-- Lokasi: `<modul>/_test/*.test.ts`. Jalankan hanya folder/file modul yang diubah (`bun test src/modules/admin/organizations/_test`), JANGAN full suite / multi-modul — setiap run memakan kuota request Upstash Redis.
-- Struktur `describe`: `happy path` → `edge cases` → `body validation (422)`.
-- 401 (auth) sudah dicover oleh `auth-middleware.test.ts`, tidak perlu ulang di setiap modul.
-- Route action-based: pakai `treaty(app).api` untuk body valid (type-safe per action); pakai `app.handle(new Request(...))` + JSON mentah untuk body invalid (422, bypass type treaty). **Catatan: treaty tidak support Better Auth catch-all routes** — untuk route `.all('/api/auth/*', ...)` tetap pakai `app.handle` dengan `new Request(...)`.
-- Auth di test: `test.createUser` + `saveUser` → `getAuthHeaders({ userId })` → konversi ke plain object (`Object.fromEntries(headers.entries())`) untuk treaty; `test.deleteUser` setelah selesai.
-- Cleanup: `beforeEach` hapus isi tabel modul + `cleanAuthDb()` bila sentuh tabel auth.
-- Ekspektasi status: `401` tanpa session, `422` body di luar union/kurang field, `404` data tidak ketemu (jangan return `null` — Elysia serialize jadi body kosong), `200` happy path.
+- Location `modules/<modul>/_test/*.test.ts`. 
+
+### Test Rules
+
+- Jalankan hanya folder/file modul yang diubah/sedang dibuat testnya (`bun test src/modules/<modul-name>/_test`), JANGAN full suite / multi-modul — setiap run memakan kuota request Upstash Redis.
+- Pakai `const api = treaty(app).api;` untuk request type-safe (body valid) per route action.
+- Gunakan `let test: TestHelpers;
+  beforeAll(async () => {
+    const ctx = await auth.$context;
+    test = ctx.test;
+  });` sesudah describe awal
+
+### Test Structure
+
+- describe(`<module-name> <integrations/services>`, () => { 
+  - describe('success ', () => { ... })
+  - describe('authorization', () => { ... })
+    - 401 Unauthenticated already covered by `auth-middleware.test.ts`, no need to repeat in each module. 
+    - except if at route define the betterAuth macro with authorizationMiddleware
+  - describe('validation', () => { ... })
+    - describe('body validation', () => { ... })
+    - describe('query validation', () => { ... })
 
 ## App Map (`src/`)
 
