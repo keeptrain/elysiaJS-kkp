@@ -1,7 +1,3 @@
-import {
-  authMiddleware,
-  organizationMiddleware,
-} from '@/middleware/auth-middleware';
 import { randomUUIDv7 } from 'bun';
 import Elysia from 'elysia';
 
