@@ -19,6 +19,12 @@ export async function createAdminUser(test: TestHelpers, email?: string) {
   return user;
 }
 
+async function createUserKind(test: TestHelpers, authorization?: string) {
+  const user = await createUser(test);
+
+  return user;
+}
+
 export async function adminHeaders(
   test: TestHelpers,
   email?: string

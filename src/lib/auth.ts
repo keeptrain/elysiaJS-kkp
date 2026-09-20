@@ -1,7 +1,11 @@
 import { betterAuth } from 'better-auth/minimal';
 import { createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { emailOTP, openAPI, testUtils } from 'better-auth/plugins';
+import {
+  emailOTP,
+  openAPI,
+  testUtils,
+} from 'better-auth/plugins';
 import { randomUUIDv7 } from 'bun';
 import { db } from '@/lib/pg-db';
 import { findMemberByUserId } from '@/modules/organizations/membership';
