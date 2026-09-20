@@ -1,5 +1,13 @@
 import Elysia, { status, t, type Static } from 'elysia';
 import type { SessionWithOrg } from './auth-middleware';
+import {
+  MAGANG_ROLES,
+  MARKETPLACE_ROLES,
+  ORGANIZATION_POSITIONS,
+  OrganizationPosition,
+  ROLES,
+} from '@/constants/access-control';
+
 const chainedSession = {
   decorator: {},
   store: {},
@@ -15,8 +23,25 @@ const orgRequirementSchema = t.Object({
   kinds: t.Optional(
     t.Array(t.Union([t.Literal('admin'), t.Literal('organization')]))
   ),
-  positions: t.Optional(t.Array(t.String())),
-  roles: t.Optional(t.Array(t.String())),
+  positions: t.Optional(
+    t.Array(
+      t.Union([
+        t.Literal(ORGANIZATION_POSITIONS.HEAD),
+        t.Literal(ORGANIZATION_POSITIONS.STAFF),
+      ])
+    )
+  ),
+  roles: t.Optional(
+    t.Array(
+      t.Union([
+        t.Literal(ROLES.ADMIN),
+        t.Literal(MARKETPLACE_ROLES.ADMIN),
+        t.Literal(MARKETPLACE_ROLES.OPERATOR),
+        t.Literal(MAGANG_ROLES.ADMIN),
+        t.Literal(MAGANG_ROLES.OPERATOR),
+      ])
+    )
+  ),
 });
 
 export type AuthorizationRequirement = Static<typeof orgRequirementSchema>;
@@ -31,8 +56,13 @@ export const authorizationMiddleware = new Elysia<'', typeof chainedSession>({
       }
 
       if (requirement.kinds) {
-        const kind = user.metadata?.kind;
-        if (!kind || !requirement.kinds.includes(kind)) {
+        const isAdmin = user.metadata?.kind === 'admin';
+        const isOrganization = organization !== null;
+        const matchesKind =
+          (isAdmin && requirement.kinds.includes('admin')) ||
+          (isOrganization && requirement.kinds.includes('organization'));
+
+        if (!matchesKind) {
           return status(
             403,
             `Forbidden: requires kind ${requirement.kinds.join('/')}`
@@ -49,7 +79,7 @@ export const authorizationMiddleware = new Elysia<'', typeof chainedSession>({
 
       if (
         requirement.positions &&
-        !requirement.positions.includes(org.position)
+        !requirement.positions.includes(org.position as OrganizationPosition)
       ) {
         return status(
           403,
