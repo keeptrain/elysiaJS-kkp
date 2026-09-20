@@ -113,7 +113,7 @@ export const organizationsApp = new Elysia({
     },
     {
       body: actionBody,
-      authorize: { kinds: ['admin'] },
       auth: true,
+      authorize: { kinds: ['admin'] },
     }
   );

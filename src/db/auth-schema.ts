@@ -85,3 +85,10 @@ export const verifications = pgTable(
   },
   (table) => [index('verifications_identifier_idx').on(table.identifier)]
 );
+
+export const auths = {
+  users,
+  sessions,
+  accounts,
+  verifications,
+};
