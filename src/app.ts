@@ -1,15 +1,18 @@
 import { Elysia } from 'elysia';
 import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
-import { productsApp } from '@/modules/products';
-import { organizationsApp } from '@/modules/admin/organizations';
-import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
 import {} from '@/middleware/auth-middleware';
+import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
+import { organizationsApp } from '@/modules/admin/organizations';
+import { productsApp } from '@/modules/products';
+import { userModule } from '@/modules/users';
 import { authRoutes } from './modules/auth';
 import { organizationRoutes } from './modules/organizations';
+import { userServices } from './modules/users/service';
 
 const publicRoutes = new Elysia().use(productsApp);
 
 const protectedRoutes = new Elysia()
+  .decorate('userService', userServices)
   .use(organizationsApp)
   .use(organizationRoutes);
 

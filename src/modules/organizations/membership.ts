@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@/lib/pg-db';
-import { redis } from '@/lib/bun-redis';
 import { userOrganizations } from '@/db/schema';
+import { redis } from '@/lib/bun-redis';
+import { db } from '@/lib/pg-db';
 
 // Read-side membership + cache, dipakai semua consumer (hook auth,
 // middleware, route user). Admin writes invalidate lewat sini agar
@@ -12,9 +12,7 @@ import { userOrganizations } from '@/db/schema';
 const MEMBER_TTL = 300;
 const memberKey = (userId: string) => `member:${userId}`;
 
-export async function invalidateMemberCache(
-  userId: string
-): Promise<void> {
+export async function invalidateMemberCache(userId: string): Promise<void> {
   await redis.del(memberKey(userId));
 }
 

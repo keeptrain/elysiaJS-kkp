@@ -1,7 +1,9 @@
+import { randomUUIDv7 } from 'bun';
+import { and, asc, eq, gt } from 'drizzle-orm';
 import { userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
-import type { CursorPaginationQuery } from './model';
-import { and, asc, eq, gt } from 'drizzle-orm';
+import type { UserContract } from '../users';
+import type { AddMemberBody, CursorPaginationQuery } from './model';
 
 export const organizationService = {
   async listMembers(
@@ -12,7 +14,6 @@ export const organizationService = {
     const limit = query.limit ?? 10;
     const cursor = query.cursor;
 
-    // Gabungkan kondisi where: filter berdasarkan UPT DAN kursor (jika ada)
     const conditions = [eq(userOrganizations.organizationId, org)];
     if (cursor) {
       conditions.push(gt(userOrganizations.id, cursor));
@@ -22,8 +23,8 @@ export const organizationService = {
       .select()
       .from(userOrganizations)
       .where(and(...conditions))
-      .limit(limit + 1) // Ambil lebih 1 untuk cek next page
-      .orderBy(asc(userOrganizations.id)); // Wajib di-order agar kursor konsisten
+      .limit(limit + 1)
+      .orderBy(asc(userOrganizations.id));
 
     const hasNextPage = data.length > limit;
     const items = hasNextPage ? data.slice(0, -1) : data;
@@ -41,5 +42,46 @@ export const organizationService = {
       .where(eq(userOrganizations.userId, userId))
       .limit(1);
     return member ?? null;
+  },
+  async addMember(
+    userModule: UserContract,
+    memberOptions: Exclude<AddMemberBody, 'email'>
+  ) {
+    const userId = await userModule.getUserIdByEmail(memberOptions.email);
+    if (!userId) {
+      throw new Error('USER_NOT_FOUND');
+    }
+
+    if (await organizationService.isMemberExist(userId)) {
+      throw new Error('MEMBER_ALREADY_EXISTS');
+    }
+
+    const { position, roles } = memberOptions;
+
+    const add = await db.transaction(async () => {
+      await db.insert(userOrganizations).values({
+        id: randomUUIDv7(),
+        organizationId: randomUUIDv7(),
+        userId,
+        position,
+        roles,
+      });
+
+      await userModule.updateUser(userId, {
+        metadata: {
+          kind: 'organization',
+        },
+      });
+    });
+    return add;
+  },
+  async isMemberExist(userId: string) {
+    const [member] = await db
+      .select({ id: userOrganizations.id })
+      .from(userOrganizations)
+      .where(eq(userOrganizations.userId, userId))
+      .limit(1);
+
+    return !!member;
   },
 };

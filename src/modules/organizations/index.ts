@@ -1,7 +1,8 @@
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
-import { CursorPaginationQuery } from './model';
+import { userModule } from '../users';
+import { AddMemberBody, CursorPaginationQuery } from './model';
 import { organizationService } from './service';
 
 export const organizationRoutes = new Elysia({
@@ -10,6 +11,7 @@ export const organizationRoutes = new Elysia({
 })
   .use(betterAuth)
   .use(authorizationMiddleware)
+  .onError(({ code, error, set }) => {})
   .get(
     'my',
     async ({ query, user: { id: userId }, organization }) => {
@@ -29,8 +31,17 @@ export const organizationRoutes = new Elysia({
       },
     }
   )
-  .post('abc', () => 'ok', {
-    query: t.Object({
-      search: t.String({ minLength: 3 }),
-    }),
-  });
+  .post(
+    'my/add',
+    async ({ body }) => {
+      await organizationService.addMember(userModule, body);
+    },
+    {
+      body: AddMemberBody,
+      auth: true,
+      authorize: {
+        kinds: ['organization'],
+        positions: ['head'],
+      },
+    }
+  );
