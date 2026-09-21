@@ -45,6 +45,7 @@ export const organizationService = {
   },
   async addMember(
     userModule: UserContract,
+    organizationId: string,
     memberOptions: Exclude<AddMemberBody, 'email'>
   ) {
     const userId = await userModule.getUserIdByEmail(memberOptions.email);
@@ -61,7 +62,7 @@ export const organizationService = {
     const add = await db.transaction(async () => {
       await db.insert(userOrganizations).values({
         id: randomUUIDv7(),
-        organizationId: randomUUIDv7(),
+        organizationId,
         userId,
         position,
         roles,

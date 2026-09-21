@@ -1,5 +1,4 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { treaty } from '@elysia/eden';
 import type { TestHelpers } from 'better-auth/plugins';
 import { reset } from 'drizzle-seed';
 import { app } from '@/app';
@@ -9,7 +8,6 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import { createMembers } from './utils';
 
-const api = treaty(app).api;
 const base = 'http://localhost:3000';
 
 describe('organizations <integrations/services>', () => {
@@ -112,8 +110,8 @@ describe('organizations <integrations/services>', () => {
   describe('validation', () => {
     describe('body validation', () => {
       it('should accept request with body', async () => {
-        const members = await createMembers(test, 1);
-        const headMemberUserId = members.members.find(
+        const { members } = await createMembers(test, 1);
+        const headMemberUserId = members.find(
           (m) => m.member.position === 'head'
         )?.user.id;
 
@@ -121,9 +119,11 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await api.organizations.abc.post(
-          {},
-          { query: { search: 'abc' } }
+        const response = await app.handle(
+          new Request(
+            `${base}/api/organizations/abc?search=abc`,
+            { headers, method: 'POST' }
+          )
         );
         expect(response.status).toBe(200);
       });
@@ -159,9 +159,11 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await api.organizations.abc.post(
-          {},
-          { query: { search: 'ab' } }
+        const response = await app.handle(
+          new Request(
+            `${base}/api/organizations/abc?search=ab`,
+            { headers, method: 'POST' }
+          )
         );
         expect(response.status).toBe(422);
       });
@@ -176,9 +178,11 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await api.organizations.abc.post(
-          {},
-          { query: { search: 'abc' } }
+        const response = await app.handle(
+          new Request(
+            `${base}/api/organizations/abc?search=abc`,
+            { headers, method: 'POST' }
+          )
         );
         expect(response.status).toBe(200);
       });

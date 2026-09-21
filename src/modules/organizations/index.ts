@@ -1,4 +1,4 @@
-import Elysia from 'elysia';
+import Elysia, { t } from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 import { userModule } from '../users';
@@ -11,7 +11,6 @@ export const organizationRoutes = new Elysia({
 })
   .use(betterAuth)
   .use(authorizationMiddleware)
-  .onError(({ code, error, set }) => {})
   .get(
     'my',
     async ({ query, user: { id: userId }, organization }) => {
@@ -31,10 +30,14 @@ export const organizationRoutes = new Elysia({
       },
     }
   )
+  .post('abc', async () => 'ok', {
+    query: t.Object({ search: t.String({ minLength: 3 }) }),
+  })
   .post(
     'my/add',
-    async ({ body }) => {
-      await organizationService.addMember(userModule, body);
+    async ({ body, organization }) => {
+      const organizationId = (organization as { id: string }).id;
+      await organizationService.addMember(userModule, organizationId, body);
     },
     {
       body: AddMemberBody,
