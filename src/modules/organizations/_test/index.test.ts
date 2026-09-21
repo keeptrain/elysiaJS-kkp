@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { treaty } from '@elysia/eden';
 import type { TestHelpers } from 'better-auth/plugins';
 import { reset } from 'drizzle-seed';
 import { app } from '@/app';
@@ -8,6 +9,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import { createMembers } from './utils';
 
+const api = treaty(app).api;
 const base = 'http://localhost:3000';
 
 describe('organizations <integrations/services>', () => {
@@ -23,7 +25,7 @@ describe('organizations <integrations/services>', () => {
   });
 
   describe('success ', () => {
-    describe('list', () => {
+    describe('list members', () => {
       it('should return correct response', async () => {
         const members = await createMembers(test, 5);
         const headMemberUserId = members.members.find(
@@ -97,7 +99,7 @@ describe('organizations <integrations/services>', () => {
       });
     });
 
-    describe('update', () => {
+    describe('update member', () => {
       it('should update member position and roles', async () => {
         const { members } = await createMembers(test, 1);
         const userId = members[0].user.id;
@@ -106,21 +108,22 @@ describe('organizations <integrations/services>', () => {
           userId: members[0].user.id,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my/${userId}`, {
-            headers: { ...Object.fromEntries(headers.entries()), 'content-type': 'application/json' },
-            method: 'PATCH',
-            body: JSON.stringify({ position: 'head', roles: ['shop_admin'] }),
-          })
+        const response = await api.organizations.my({ memberId: userId }).patch(
+          {
+            position: 'head',
+            roles: ['shop_admin'],
+          },
+          { headers }
         );
-        const data = await response.json();
+
+        const data = response.data;
         expect(response.status).toBe(200);
-        expect(data.data.position).toBe('head');
-        expect(data.data.roles).toEqual(['shop_admin']);
+        expect(data?.data?.position).toBe('head');
+        expect(data?.data?.roles).toEqual(['shop_admin']);
       });
     });
 
-    describe('delete', () => {
+    describe('delete member', () => {
       it('should remove a member', async () => {
         const { members } = await createMembers(test, 1);
         const userId = members[0].user.id;
@@ -136,7 +139,7 @@ describe('organizations <integrations/services>', () => {
           })
         );
         expect(response.status).toBe(200);
-        expect((await response.json())).toEqual({ success: true });
+        expect(await response.json()).toEqual({ success: true });
       });
     });
   });

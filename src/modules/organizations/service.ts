@@ -4,7 +4,11 @@ import { userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import { invalidateMemberCache } from '@/modules/organizations/membership';
 import type { UserContract } from '../users';
-import type { AddMemberBody, UpdateMemberBody, CursorPaginationQuery } from './model';
+import type {
+  AddMemberBody,
+  CursorPaginationQuery,
+  UpdateMemberBody,
+} from './model';
 
 export const organizationService = {
   async listMembers(
@@ -83,7 +87,6 @@ export const organizationService = {
       .from(userOrganizations)
       .where(eq(userOrganizations.userId, userId))
       .limit(1);
-
     return !!member;
   },
   async updateMember(
@@ -98,10 +101,12 @@ export const organizationService = {
       .set({
         ...(position ? { position } : {}),
         ...(roles ? { roles } : {}),
-        updatedAt: new Date(),
       })
       .where(
-        and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId))
+        and(
+          eq(userOrganizations.userId, userId),
+          eq(userOrganizations.organizationId, organizationId)
+        )
       )
       .returning();
 
@@ -112,7 +117,10 @@ export const organizationService = {
     await db
       .delete(userOrganizations)
       .where(
-        and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId))
+        and(
+          eq(userOrganizations.userId, userId),
+          eq(userOrganizations.organizationId, organizationId)
+        )
       );
     await invalidateMemberCache(userId);
     return { success: true };

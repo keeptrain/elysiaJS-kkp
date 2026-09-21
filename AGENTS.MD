@@ -58,6 +58,7 @@
 
 - Jalankan hanya folder/file modul yang diubah/sedang dibuat testnya (`bun test src/modules/<modul-name>/_test`), JANGAN full suite / multi-modul — setiap run memakan kuota request Upstash Redis.
 - Pakai `const api = treaty(app).api;` untuk request type-safe (body valid) per route action.
+  - How to use: `const res = await api.<route-action>({ body / query, params : { ... } }, { headers });`
 - Gunakan `let test: TestHelpers;
   beforeAll(async () => {
     const ctx = await auth.$context;
