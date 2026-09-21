@@ -10,7 +10,6 @@ import { db } from '@/lib/pg-db';
 import { createMembers } from './utils';
 
 const api = treaty(app).api;
-const base = 'http://localhost:3000';
 
 describe('organizations <integrations/services>', () => {
   let test: TestHelpers;
@@ -25,7 +24,7 @@ describe('organizations <integrations/services>', () => {
   });
 
   describe('success ', () => {
-    describe('list members', () => {
+    describe('list', () => {
       it('should return correct response', async () => {
         const members = await createMembers(test, 5);
         const headMemberUserId = members.members.find(
@@ -36,11 +35,12 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my`, { headers })
+        const response = await api.organizations.my.get(
+          { headers },
+          {}
         );
         expect(response.status).toBe(200);
-        expect((await response.json()).items).toHaveLength(5);
+        expect(response.data.items).toHaveLength(5);
       });
 
       it('should return correct response with query params', async () => {
@@ -53,11 +53,12 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my?limit=2`, { headers })
+        const response = await api.organizations.my.get(
+          { query: { limit: 2 }, headers },
+          {}
         );
         expect(response.status).toBe(200);
-        expect((await response.json()).items).toHaveLength(2);
+        expect(response.data.items).toHaveLength(2);
       });
 
       it('should return correct response with next cursor when limit is less than total', async () => {
@@ -70,13 +71,13 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my?limit=2`, { headers })
+        const response = await api.organizations.my.get(
+          { query: { limit: 2 }, headers },
+          {}
         );
-        const data = await response.json();
         expect(response.status).toBe(200);
-        expect(data.items).toHaveLength(2);
-        expect(data.nextCursor).toBe(members.members[1].member.id);
+        expect(response.data.items).toHaveLength(2);
+        expect(response.data.nextCursor).toBe(members.members[1].member.id);
       });
 
       it('should return null nextCursor when all items fit within limit', async () => {
@@ -89,17 +90,35 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my?limit=5`, { headers })
+        const response = await api.organizations.my.get(
+          { query: { limit: 5 }, headers },
+          {}
         );
-        const data = await response.json();
         expect(response.status).toBe(200);
-        expect(data.items).toHaveLength(3);
-        expect(data.nextCursor).toBeNull();
+        expect(response.data.items).toHaveLength(3);
+        expect(response.data.nextCursor).toBeNull();
       });
     });
 
-    describe('update member', () => {
+    describe('add member', () => {
+      it('should add a member', async () => {
+        const { members } = await createMembers(test, 1);
+        const newUser = test.createUser({ email: 'new@test.com' });
+        await test.saveUser(newUser);
+
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await api.organizations.my.add.post(
+          { email: newUser.email, position: 'staff' },
+          { headers }
+        );
+        expect(response.status).toBe(200);
+      });
+    });
+
+    describe('update', () => {
       it('should update member position and roles', async () => {
         const { members } = await createMembers(test, 1);
         const userId = members[0].user.id;
@@ -109,21 +128,17 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await api.organizations.my({ memberId: userId }).patch(
-          {
-            position: 'head',
-            roles: ['shop_admin'],
-          },
+          { position: 'head', roles: ['shop_admin'] },
           { headers }
         );
 
-        const data = response.data;
         expect(response.status).toBe(200);
-        expect(data?.data?.position).toBe('head');
-        expect(data?.data?.roles).toEqual(['shop_admin']);
+        expect(response.data?.data?.position).toBe('head');
+        expect(response.data?.data?.roles).toEqual(['shop_admin']);
       });
     });
 
-    describe('delete member', () => {
+    describe('delete', () => {
       it('should remove a member', async () => {
         const { members } = await createMembers(test, 1);
         const userId = members[0].user.id;
@@ -132,37 +147,57 @@ describe('organizations <integrations/services>', () => {
           userId: members[0].user.id,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my/${userId}`, {
-            headers,
-            method: 'DELETE',
-          })
+        const response = await api.organizations.my({ memberId: userId }).delete(
+          {},
+          { headers }
         );
         expect(response.status).toBe(200);
-        expect(await response.json()).toEqual({ success: true });
+        expect(response.data).toEqual({ success: true });
       });
     });
   });
 
   describe('validation', () => {
     describe('body validation', () => {
-      it('should accept request with body', async () => {
+      it('should return 422 if add member email is too short', async () => {
         const { members } = await createMembers(test, 1);
-        const headMemberUserId = members.find(
-          (m) => m.member.position === 'head'
-        )?.user.id;
-
         const { headers } = await test.login({
-          userId: headMemberUserId as string,
+          userId: members[0].user.id,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/abc?search=abc`, {
-            headers,
-            method: 'POST',
-          })
+        const response = await api.organizations.my.add.post(
+          { email: 'ab', position: 'staff' },
+          { headers }
         );
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(422);
+      });
+
+      it('should return 422 if update body has invalid position', async () => {
+        const { members } = await createMembers(test, 1);
+        const userId = members[0].user.id;
+
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await api.organizations.my({ memberId: userId }).patch(
+          { position: 'invalid_position' },
+          { headers }
+        );
+        expect(response.status).toBe(422);
+      });
+
+      it('should return 422 if add member has missing required fields', async () => {
+        const { members } = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await api.organizations.my.add.post(
+          { position: 'staff' },
+          { headers }
+        );
+        expect(response.status).toBe(422);
       });
     });
 
@@ -177,15 +212,16 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/my?limit=invalid`, { headers })
+        const response = await api.organizations.my.get(
+          { query: { limit: 'invalid' as unknown as number }, headers },
+          {}
         );
         expect(response.status).toBe(422);
       });
 
       it('should return 422 if search minLength not met', async () => {
-        const members = await createMembers(test, 1);
-        const headMemberUserId = members.members.find(
+        const { members } = await createMembers(test, 1);
+        const headMemberUserId = members.find(
           (m) => m.member.position === 'head'
         )?.user.id;
 
@@ -193,18 +229,16 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/abc?search=ab`, {
-            headers,
-            method: 'POST',
-          })
+        const response = await api.organizations.abc.post(
+          {},
+          { query: { search: 'ab' }, headers }
         );
         expect(response.status).toBe(422);
       });
 
       it('should return 200 if search meets minLength', async () => {
-        const members = await createMembers(test, 1);
-        const headMemberUserId = members.members.find(
+        const { members } = await createMembers(test, 1);
+        const headMemberUserId = members.find(
           (m) => m.member.position === 'head'
         )?.user.id;
 
@@ -212,11 +246,9 @@ describe('organizations <integrations/services>', () => {
           userId: headMemberUserId as string,
         });
 
-        const response = await app.handle(
-          new Request(`${base}/api/organizations/abc?search=abc`, {
-            headers,
-            method: 'POST',
-          })
+        const response = await api.organizations.abc.post(
+          {},
+          { query: { search: 'abc' }, headers }
         );
         expect(response.status).toBe(200);
       });
