@@ -1,27 +1,27 @@
-import { desc, eq, like } from 'drizzle-orm';
+import { and, asc, eq, gt, like } from 'drizzle-orm';
 import { users } from '@/db/auth-schema';
 import { db } from '@/lib/pg-db';
-import { userModule } from '@/modules/users';
+import type { UsersAction } from './model';
+
+type ListUsersQuery = Extract<UsersAction, { action: 'list' }>['filters'];
 
 export const userService = {
-  async list(filters?: { search?: string }) {
-    const base = db.select().from(users);
-    if (filters?.search) {
-      return base.where(like(users.name, `%${filters.search}%`)).orderBy(desc(users.createdAt));
-    }
-    return base.orderBy(desc(users.createdAt));
-  },
-  async getById(id: string) {
-    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return user ?? null;
-  },
-  async create(data: { name: string; email: string; metadata?: { kind?: string } }) {
-    const [user] = await db.insert(users).values({ ...data, emailVerified: false }).returning();
-    return user;
-  },
-  async update(id: string, data: Partial<{ name: string; email: string; metadata: { kind?: string } }>) {
-    const [updated] = await userModule.updateUser(id, data);
-    return updated ?? null;
+  async list(query: ListUsersQuery) {
+    const limit = query?.limit ?? 10;
+    const cursor = query?.cursor;
+    const conditions = [];
+    if (query?.search) conditions.push(like(users.name, `%${query.search}%`));
+    if (cursor) conditions.push(gt(users.id, cursor));
+    const data = await db
+      .select()
+      .from(users)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(users.id))
+      .limit(limit + 1);
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, -1) : data;
+    const nextCursor = hasNextPage ? items[items.length - 1].id : null;
+    return { items, nextCursor };
   },
   async delete(id: string) {
     await db.delete(users).where(eq(users.id, id));
