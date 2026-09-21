@@ -15,3 +15,10 @@ export const AddMemberBody = t.Object({
 });
 
 export type AddMemberBody = typeof AddMemberBody.static;
+
+export const UpdateMemberBody = t.Object({
+  position: t.Optional(t.Enum(ORGANIZATION_POSITIONS)),
+  roles: t.Optional(t.Array(t.String({ minLength: 3, maxLength: 50 }))),
+});
+
+export type UpdateMemberBody = typeof UpdateMemberBody.static;

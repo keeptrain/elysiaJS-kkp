@@ -2,8 +2,9 @@ import { randomUUIDv7 } from 'bun';
 import { and, asc, eq, gt } from 'drizzle-orm';
 import { userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
+import { invalidateMemberCache } from '@/modules/organizations/membership';
 import type { UserContract } from '../users';
-import type { AddMemberBody, CursorPaginationQuery } from './model';
+import type { AddMemberBody, UpdateMemberBody, CursorPaginationQuery } from './model';
 
 export const organizationService = {
   async listMembers(
@@ -84,5 +85,36 @@ export const organizationService = {
       .limit(1);
 
     return !!member;
+  },
+  async updateMember(
+    userId: string,
+    organizationId: string,
+    data: UpdateMemberBody
+  ) {
+    const { position, roles } = data;
+
+    const [updated] = await db
+      .update(userOrganizations)
+      .set({
+        ...(position ? { position } : {}),
+        ...(roles ? { roles } : {}),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId))
+      )
+      .returning();
+
+    await invalidateMemberCache(userId);
+    return updated ?? null;
+  },
+  async removeMember(userId: string, organizationId: string) {
+    await db
+      .delete(userOrganizations)
+      .where(
+        and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId))
+      );
+    await invalidateMemberCache(userId);
+    return { success: true };
   },
 };

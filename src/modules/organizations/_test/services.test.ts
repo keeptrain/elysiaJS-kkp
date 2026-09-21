@@ -114,6 +114,44 @@ describe('Organization Service', () => {
     });
   });
 
+  describe('updateMember', () => {
+    it('should update member position and roles', async () => {
+      const { organizationId, members } = await createMembers(test, 1);
+      const userId = members[0].user.id;
+
+      const result = await organizationService.updateMember(
+        userId,
+        organizationId,
+        { position: 'head', roles: ['shop_admin'] }
+      );
+      expect(result).not.toBeNull();
+      expect(result!.position).toBe('head');
+      expect(result!.roles).toEqual(['shop_admin']);
+    });
+
+    it('should return null when updating non-existent member', async () => {
+      const { id: organizationId } = await createOrganization('Test Org');
+
+      const result = await organizationService.updateMember(
+        'nonexistent-user-id',
+        organizationId,
+        { position: 'staff' }
+      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('removeMember', () => {
+    it('should remove a member from the organization', async () => {
+      const { organizationId, members } = await createMembers(test, 1);
+      const userId = members[0].user.id;
+
+      const result = await organizationService.removeMember(userId, organizationId);
+      expect(result).toEqual({ success: true });
+      expect(await organizationService.isMemberExist(userId)).toBe(false);
+    });
+  });
+
   describe('isMemberExist', () => {
     it('should return true when user is a member', async () => {
       const { members } = await createMembers(test, 1);

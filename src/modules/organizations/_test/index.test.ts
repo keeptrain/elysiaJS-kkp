@@ -96,6 +96,49 @@ describe('organizations <integrations/services>', () => {
         expect(data.nextCursor).toBeNull();
       });
     });
+
+    describe('update', () => {
+      it('should update member position and roles', async () => {
+        const { members } = await createMembers(test, 1);
+        const userId = members[0].user.id;
+
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await app.handle(
+          new Request(`${base}/api/organizations/my/${userId}`, {
+            headers: { ...Object.fromEntries(headers.entries()), 'content-type': 'application/json' },
+            method: 'PATCH',
+            body: JSON.stringify({ position: 'head', roles: ['shop_admin'] }),
+          })
+        );
+        const data = await response.json();
+        expect(response.status).toBe(200);
+        expect(data.data.position).toBe('head');
+        expect(data.data.roles).toEqual(['shop_admin']);
+      });
+    });
+
+    describe('delete', () => {
+      it('should remove a member', async () => {
+        const { members } = await createMembers(test, 1);
+        const userId = members[0].user.id;
+
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await app.handle(
+          new Request(`${base}/api/organizations/my/${userId}`, {
+            headers,
+            method: 'DELETE',
+          })
+        );
+        expect(response.status).toBe(200);
+        expect((await response.json())).toEqual({ success: true });
+      });
+    });
   });
 
   describe('validation', () => {
