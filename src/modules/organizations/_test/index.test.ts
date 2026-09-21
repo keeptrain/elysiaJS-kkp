@@ -24,7 +24,7 @@ describe('organizations <integrations/services>', () => {
   });
 
   describe('success ', () => {
-    describe('list', () => {
+    describe('GET my', () => {
       it('should return correct response', async () => {
         const members = await createMembers(test, 5);
         const headMemberUserId = members.members.find(
@@ -98,10 +98,29 @@ describe('organizations <integrations/services>', () => {
         expect(response.data.items).toHaveLength(3);
         expect(response.data.nextCursor).toBeNull();
       });
+
+      describe('VALIDATION my', () => {
+        it('should return 422 if wrong query type', async () => {
+          const members = await createMembers(test, 1);
+          const headMemberUserId = members.members.find(
+            (m) => m.member.position === 'head'
+          )?.user.id;
+
+          const { headers } = await test.login({
+            userId: headMemberUserId as string,
+          });
+
+          const response = await api.organizations.my.get(
+            { query: { limit: 'invalid' as unknown as number }, headers },
+            {}
+          );
+          expect(response.status).toBe(422);
+        });
+      });
     });
 
-    describe('add member', () => {
-      it('should add a member', async () => {
+    describe('POST my/add', () => {
+      it('should return correct response', async () => {
         const { members } = await createMembers(test, 1);
         const newUser = test.createUser({ email: 'new@test.com' });
         await test.saveUser(newUser);
@@ -116,10 +135,38 @@ describe('organizations <integrations/services>', () => {
         );
         expect(response.status).toBe(200);
       });
+
+      describe('VALIDATION my/add', () => {
+        it('should return 422 if add member email is too short', async () => {
+          const { members } = await createMembers(test, 1);
+          const { headers } = await test.login({
+            userId: members[0].user.id,
+          });
+
+          const response = await api.organizations.my.add.post(
+            { email: 'ab', position: 'staff' },
+            { headers }
+          );
+          expect(response.status).toBe(422);
+        });
+
+        it('should return 422 if add member has missing required fields', async () => {
+          const { members } = await createMembers(test, 1);
+          const { headers } = await test.login({
+            userId: members[0].user.id,
+          });
+
+          const response = await api.organizations.my.add.post(
+            { position: 'staff' },
+            { headers }
+          );
+          expect(response.status).toBe(422);
+        });
+      });
     });
 
-    describe('update', () => {
-      it('should update member position and roles', async () => {
+    describe('PATCH my/:memberId', () => {
+      it('should return correct response', async () => {
         const { members } = await createMembers(test, 1);
         const userId = members[0].user.id;
 
@@ -136,10 +183,27 @@ describe('organizations <integrations/services>', () => {
         expect(response.data?.data?.position).toBe('head');
         expect(response.data?.data?.roles).toEqual(['shop_admin']);
       });
+
+      describe('VALIDATION my/:memberId', () => {
+        it('should return 422 if update body has invalid position', async () => {
+          const { members } = await createMembers(test, 1);
+          const userId = members[0].user.id;
+
+          const { headers } = await test.login({
+            userId: members[0].user.id,
+          });
+
+          const response = await api.organizations.my({ memberId: userId }).patch(
+            { position: 'invalid_position' },
+            { headers }
+          );
+          expect(response.status).toBe(422);
+        });
+      });
     });
 
-    describe('delete', () => {
-      it('should remove a member', async () => {
+    describe('DELETE my/:memberId', () => {
+      it('should return correct response', async () => {
         const { members } = await createMembers(test, 1);
         const userId = members[0].user.id;
 
@@ -155,88 +219,9 @@ describe('organizations <integrations/services>', () => {
         expect(response.data).toEqual({ success: true });
       });
     });
-  });
 
-  describe('validation', () => {
-    describe('body validation', () => {
-      it('should return 422 if add member email is too short', async () => {
-        const { members } = await createMembers(test, 1);
-        const { headers } = await test.login({
-          userId: members[0].user.id,
-        });
-
-        const response = await api.organizations.my.add.post(
-          { email: 'ab', position: 'staff' },
-          { headers }
-        );
-        expect(response.status).toBe(422);
-      });
-
-      it('should return 422 if update body has invalid position', async () => {
-        const { members } = await createMembers(test, 1);
-        const userId = members[0].user.id;
-
-        const { headers } = await test.login({
-          userId: members[0].user.id,
-        });
-
-        const response = await api.organizations.my({ memberId: userId }).patch(
-          { position: 'invalid_position' },
-          { headers }
-        );
-        expect(response.status).toBe(422);
-      });
-
-      it('should return 422 if add member has missing required fields', async () => {
-        const { members } = await createMembers(test, 1);
-        const { headers } = await test.login({
-          userId: members[0].user.id,
-        });
-
-        const response = await api.organizations.my.add.post(
-          { position: 'staff' },
-          { headers }
-        );
-        expect(response.status).toBe(422);
-      });
-    });
-
-    describe('query validation', () => {
-      it('should return 422 if wrong query type', async () => {
-        const members = await createMembers(test, 1);
-        const headMemberUserId = members.members.find(
-          (m) => m.member.position === 'head'
-        )?.user.id;
-
-        const { headers } = await test.login({
-          userId: headMemberUserId as string,
-        });
-
-        const response = await api.organizations.my.get(
-          { query: { limit: 'invalid' as unknown as number }, headers },
-          {}
-        );
-        expect(response.status).toBe(422);
-      });
-
-      it('should return 422 if search minLength not met', async () => {
-        const { members } = await createMembers(test, 1);
-        const headMemberUserId = members.find(
-          (m) => m.member.position === 'head'
-        )?.user.id;
-
-        const { headers } = await test.login({
-          userId: headMemberUserId as string,
-        });
-
-        const response = await api.organizations.abc.post(
-          {},
-          { query: { search: 'ab' }, headers }
-        );
-        expect(response.status).toBe(422);
-      });
-
-      it('should return 200 if search meets minLength', async () => {
+    describe('POST abc', () => {
+      it('should return correct response', async () => {
         const { members } = await createMembers(test, 1);
         const headMemberUserId = members.find(
           (m) => m.member.position === 'head'
@@ -251,6 +236,25 @@ describe('organizations <integrations/services>', () => {
           { query: { search: 'abc' }, headers }
         );
         expect(response.status).toBe(200);
+      });
+
+      describe('VALIDATION abc', () => {
+        it('should return 422 if search minLength not met', async () => {
+          const { members } = await createMembers(test, 1);
+          const headMemberUserId = members.find(
+            (m) => m.member.position === 'head'
+          )?.user.id;
+
+          const { headers } = await test.login({
+            userId: headMemberUserId as string,
+          });
+
+          const response = await api.organizations.abc.post(
+            {},
+            { query: { search: 'ab' }, headers }
+          );
+          expect(response.status).toBe(422);
+        });
       });
     });
   });

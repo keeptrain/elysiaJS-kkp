@@ -69,28 +69,13 @@
 
 - describe(`<module-name> <integrations or services test>`, () => { 
   - describe('success ', () => { ... })
-    - describe(`<descriptive route name> get`, () => { ... })
+    - describe(`GET/POST/PATCH/DELETE <descriptive route name> absolute/route/name`, () => { ... })
       - (must) it('should return correct response', async () => { ... }) 
       - (if exist) it('should return correct response with query params', async () => { ... })
       - (if exist) it('should return correct response with body params', async () => { ... })
       - (if exist) it('should return correct response with path params', async () => { ... })
-      - (if exists) describe('body validation', () => { ... })
-      - (if exists) describe('query validation', () => { ... })
-      - (if exists) describe('path validation', () => { ... })
-    - if the module has other route actions, add describe for each action:
-    - describe(`<descriptive route name> post`, () => { ... })
-      - (must) it('should return correct response', async () => { ... }) 
-      - (if exists) describe('body validation', () => { ... })
-      - (if exists) describe('query validation', () => { ... })
-      - (if exists) describe('path validation', () => { ... })
-    - describe(`patch`, () => { ... })
-      - (if exists) describe('body validation', () => { ... })
-      - (if exists) describe('query validation', () => { ... })
-      - (if exists) describe('path validation', () => { ... })
-    - describe(`delete`, () => { ... })
-      - (if exists) describe('body validation', () => { ... })
-      - (if exists) describe('query validation', () => { ... })
-      - (if exists) describe('path validation', () => { ... })
+      - describe(`VALIDATION absolute/route/name`)
+        - (if exists) it(`should [descriptive test] `, () => { ... })
   - describe('authorization', () => { ... })
     - 401 Unauthenticated already covered by `auth-middleware.test.ts`, no need to repeat in each module. 
     - 403 Unauthorized already covered by `auth-middleware.test.ts`, no need to repeat in each module.
