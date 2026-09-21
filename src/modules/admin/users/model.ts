@@ -1,11 +1,16 @@
 import { t } from 'elysia';
 
+export const CursorPaginationQuery = t.Object({
+  cursor: t.Optional(t.String({ format: 'uuid' })),
+  limit: t.Optional(t.Numeric({ default: 10 })),
+});
+
+export type CursorPaginationQuery = typeof CursorPaginationQuery.static;
+
 export const actionBody = t.Union([
   t.Object({
     action: t.Literal('list'),
-    filters: t.Optional(
-      t.Object({ search: t.Optional(t.String()), cursor: t.Optional(t.String({ format: 'uuid' })), limit: t.Optional(t.Numeric({ default: 10 })) })
-    ),
+    filters: t.Optional(t.Object({ search: t.Optional(t.String()) })),
   }),
   t.Object({ action: t.Literal('get'), id: t.String() }),
   t.Object({

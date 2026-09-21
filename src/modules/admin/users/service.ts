@@ -3,14 +3,14 @@ import { users } from '@/db/auth-schema';
 import { db } from '@/lib/pg-db';
 import type { UsersAction } from './model';
 
-type ListUsersQuery = Extract<UsersAction, { action: 'list' }>['filters'];
+type ListUsersFilters = Extract<UsersAction, { action: 'list' }>['filters'];
 
 export const userService = {
-  async list(query: ListUsersQuery) {
-    const limit = query?.limit ?? 10;
-    const cursor = query?.cursor;
+  async list(filters: ListUsersFilters, query: { cursor?: string; limit?: number }) {
+    const limit = query.limit ?? 10;
+    const cursor = query.cursor;
     const conditions = [];
-    if (query?.search) conditions.push(like(users.name, `%${query.search}%`));
+    if (filters?.search) conditions.push(like(users.name, `%${filters.search}%`));
     if (cursor) conditions.push(gt(users.id, cursor));
     const data = await db
       .select()

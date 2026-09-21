@@ -1,19 +1,11 @@
-import { Elysia, status, t } from 'elysia';
+import { Elysia, status } from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
+import { userModule } from '@/modules/users';
+import { actionBody, CursorPaginationQuery } from './model';
 import { userService } from './service';
 
-const actionBody = t.Union([
-  t.Object({ action: t.Literal('list'), filters: t.Optional(t.Object({ search: t.Optional(t.String()) })) }),
-  t.Object({ action: t.Literal('get'), id: t.String() }),
-  t.Object({ action: t.Literal('create'), name: t.String(), email: t.String({ format: 'email' }) }),
-  t.Object({ action: t.Literal('update'), id: t.String(), name: t.Optional(t.String()), email: t.Optional(t.String({ format: 'email' })), metadata: t.Optional(t.Object({ kind: t.Optional(t.String()) })) }),
-  t.Object({ action: t.Literal('delete'), id: t.String() }),
-]);
-
-export type UsersAction = typeof actionBody.static;
-
-export const usersApp = new Elysia({
+export const adminUsersModule = new Elysia({
   prefix: '/users',
   detail: { tags: ['users'], hide: true },
 })
@@ -21,25 +13,14 @@ export const usersApp = new Elysia({
   .use(authorizationMiddleware)
   .post(
     '',
-    async ({ body }: { body: UsersAction }) => {
+    async ({ body, query }) => {
       switch (body.action) {
         case 'list':
-          return userService.list(body.filters);
+          return userService.list(body.filters, query);
         case 'get': {
-          const user = await userService.getById(body.id);
+          const user = await userModule.getById(body.id);
           if (!user) return status(404, { message: 'User not found' });
           return user;
-        }
-        case 'create':
-          return userService.create({ name: body.name, email: body.email });
-        case 'update': {
-          const updated = await userService.update(body.id, {
-            name: body.name,
-            email: body.email,
-            metadata: body.metadata,
-          });
-          if (!updated) return status(404, { message: 'User not found' });
-          return updated;
         }
         case 'delete':
           return userService.delete(body.id);
@@ -47,6 +28,7 @@ export const usersApp = new Elysia({
     },
     {
       body: actionBody,
+      query: CursorPaginationQuery,
       auth: true,
       authorize: { kinds: ['admin'] },
     }
