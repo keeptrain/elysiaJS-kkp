@@ -1,16 +1,14 @@
 import { and, asc, eq, gt, like } from 'drizzle-orm';
 import { users } from '@/db/auth-schema';
 import { db } from '@/lib/pg-db';
-import type { UsersAction } from './model';
-
-type ListUsersFilters = Extract<UsersAction, { action: 'list' }>['filters'];
+import type { CursorPaginationQuery } from './model';
 
 export const userService = {
-  async list(filters: ListUsersFilters, query: { cursor?: string; limit?: number }) {
+  async list(query: CursorPaginationQuery) {
     const limit = query.limit ?? 10;
     const cursor = query.cursor;
     const conditions = [];
-    if (filters?.search) conditions.push(like(users.name, `%${filters.search}%`));
+    if (query?.search) conditions.push(like(users.name, `%${query.search}%`));
     if (cursor) conditions.push(gt(users.id, cursor));
     const data = await db
       .select()

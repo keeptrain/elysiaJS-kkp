@@ -1,9 +1,16 @@
 import { eq } from 'drizzle-orm';
-import { UserSchema, users } from '@/db/auth-schema';
-import { auth } from '@/lib/auth';
+import { type UserSchema, users } from '@/db/auth-schema';
 import { db } from '@/lib/pg-db';
 
 export const userServices = {
+  async getById(id: string) {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+    return user ?? null;
+  },
   async getUserIdByEmail(email: string) {
     return await db
       .select()

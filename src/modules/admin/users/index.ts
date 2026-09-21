@@ -11,13 +11,16 @@ export const adminUsersModule = new Elysia({
 })
   .use(betterAuth)
   .use(authorizationMiddleware)
+  .get('', async ({ query }) => userService.list(query), {
+    query: CursorPaginationQuery,
+    auth: true,
+    authorize: { kinds: ['admin'] },
+  })
   .post(
-    '',
-    async ({ body, query }) => {
+    'actions',
+    async ({ body }) => {
       switch (body.action) {
-        case 'list':
-          return userService.list(body.filters, query);
-        case 'get': {
+        case 'getById': {
           const user = await userModule.getById(body.id);
           if (!user) return status(404, { message: 'User not found' });
           return user;
@@ -27,8 +30,7 @@ export const adminUsersModule = new Elysia({
       }
     },
     {
-      body: actionBody,
-      query: CursorPaginationQuery,
+      body: actionBody, // Tidak perlu lagi nyampur CursorPaginationQuery di sini
       auth: true,
       authorize: { kinds: ['admin'] },
     }

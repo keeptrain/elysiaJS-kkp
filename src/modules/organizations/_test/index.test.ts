@@ -153,6 +153,7 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await api.organizations.my.add.post(
+          // @ts-expect-error
           { position: 'staff' },
           { headers }
         );
@@ -190,6 +191,7 @@ describe('organizations <integrations/services>', () => {
 
         const response = await api.organizations
           .my({ memberId: userId })
+          // @ts-expect-error
           .patch({ position: 'invalid_position' }, { headers });
         expect(response.status).toBe(422);
       });

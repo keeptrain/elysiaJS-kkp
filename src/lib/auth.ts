@@ -1,21 +1,17 @@
-import { betterAuth } from 'better-auth/minimal';
-import { createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import {
-  emailOTP,
-  openAPI,
-  testUtils,
-} from 'better-auth/plugins';
+import { createAuthMiddleware } from 'better-auth/api';
+import { betterAuth } from 'better-auth/minimal';
+import { emailOTP, openAPI, testUtils } from 'better-auth/plugins';
 import { randomUUIDv7 } from 'bun';
-import { db } from '@/lib/pg-db';
-import { findMemberByUserId } from '@/modules/organizations/membership';
-import * as schema from '@/db/auth-schema';
-import { resendMailer } from '@/lib/resend-mailer';
 import { env } from '@/constants/env';
 import {
-  betterAuthEnabledPaths,
   betterAuthDisabledPaths,
+  betterAuthEnabledPaths,
 } from '@/constants/routes';
+import * as schema from '@/db/auth-schema';
+import { db } from '@/lib/pg-db';
+import { resendMailer } from '@/lib/resend-mailer';
+import { findMemberByUserId } from '@/modules/organizations/membership';
 
 const strippedSessionFields = {
   createdAt: {
