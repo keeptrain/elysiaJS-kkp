@@ -2,7 +2,11 @@ import Elysia, { t } from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 import { userModule } from '../users';
-import { AddMemberBody, UpdateMemberBody, CursorPaginationQuery } from './model';
+import {
+  AddMemberBody,
+  CursorPaginationQuery,
+  UpdateMemberBody,
+} from './model';
 import { organizationService } from './service';
 
 export const organizationRoutes = new Elysia({
@@ -30,13 +34,9 @@ export const organizationRoutes = new Elysia({
       },
     }
   )
-  .post(
-    'abc',
-    async () => 'ok',
-    {
-      query: t.Object({ search: t.String({ minLength: 3 }) }),
-    }
-  )
+  .post('abc', async () => 'ok', {
+    query: t.Object({ search: t.String({ minLength: 3 }) }),
+  })
   .post(
     'my/add',
     async ({ body, organization }) => {
