@@ -1,8 +1,8 @@
 import { Elysia, status, t } from 'elysia';
-import { organizationService } from './service';
 import type { AppRole, OrganizationPosition } from '@/constants/access-control';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
+import { organizationService } from './service';
 
 const actionBody = t.Union([
   t.Object({

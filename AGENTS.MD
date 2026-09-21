@@ -1,19 +1,54 @@
 ## Rules
 
-- please don't return so many text when result task is just a single line code
-- always bun package manager
+- please don't return so many text,response when result task or asking
+
+## Project Architecture
+
+- Using modular monolith architecture, each module has its own route, schema, and service.
+
+### Architecture Rules
+
+- When other modules need to use a other module's make a request to that module's route, not directly call the service. This is to keep the module independent and maintainable. And the module can be easily to separate to microservice in the future if needed.
 
 ## Tech Stack
 
-- Runtime: Bun `1.4.0` (package manager selalu `bun`, jangan npm/yarn/pnpm).
-- Bahasa: TypeScript (`target` ES2021, `module` ES2022, `strict` true).
-- Framework: Elysia (`latest`) + plugin `@elysiajs/cors` (`corsPlugin`) dan `@elysia/openapi` (`openapiPlugin`, UI Scalar di `/openapi`, JSON di `/openapi/json`).
-- Auth: `better-auth@1.7.5` (`src/lib/auth.ts`, `drizzleAdapter` pg, plugin `openAPI()` + `emailOTP` OTP 6 digit/5 menit + Google OAuth). Gmail-only (`@gmail.com`) ditegakkan di edge (`betterAuthView` di `src/utils/auth-utils.ts`). Session 1 hari + `cookieCache` 5 menit.
-- DB: Postgres via `postgres@3.4.9` + `drizzle-orm` (`src/lib/pg-db.ts`, `DATABASE_URL`). `drizzle-kit` untuk generate/migrate/push (`out: ./drizzle`, schema hanya `./src/db/auth-schema.ts`, dialect postgresql).
-- Mail OTP: `resend@6.24.0` di production; non-prod tulis html ke `tmp/otp-mail/` (`src/lib/resend-mailer.ts`).
-- Rate limit: in-memory 1 req/menit per IP (`InMemoryRateLimiter`, `publicMiddleware` global `onBeforeHandle`; mati saat `NODE_ENV=test`).
-- Docs OpenAPI Better Auth: hanya `RELEVANT_AUTH_PATHS` yang di-merge (`src/utils/openapi-utils.ts`, pin tipe OpenAPI 3.1 via `openapi-types` devDep).
-- Formatter: Prettier (`bun run format` / `format:check`).
+- Runtime: Bun `1.4.0` (always using `bun` or `bunx`).
+- Language: TypeScript 
+  - Strict : true
+  - NoImplicitAny : true
+- Framework: Elysia (`latest`)
+  - Typebox schema validation.
+  - `@elysia/openapi` (`openapiPlugin`, UI Scalar di `/openapi`, JSON di `/openapi/json`).
+- Database: Postgres:16-alpine
+  - Running in container on host port 5433 (dev) / 5432 (staging/prod). 
+  - ORM: `drizzle-orm`
+- Database in-memory cache: Upstash Redis (free plan)
+- Code linter & formatter: Biome
+
+### Authentication
+
+- Better Auth agnostic library
+
+#### Enabled methods
+
+- Email OTP (Gmail-only, via Resend API)
+- Google OAuth (via `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
+
+## App (`src/`)
+
+- `index.ts`: listen port.
+- `app.ts`: managing elysia apps, routes, middlewares, plugins, cors, rate-limit, openapi.
+
+### Modules (`src/modules/<module-name>/`)
+
+#### Pattern creation
+- `src/modules/<module-name>/index.ts` (route actions)
+- `src/modules/<module-name>/schema.ts` (typebox schema)
+- `src/modules/<module-name>/service.ts` (business logic, db query)
+
+#### Pattern usage
+
+- `src/modules/<module-name>/service` (route actions)
 
 ## Test
 
@@ -31,24 +66,26 @@
 
 ### Test Structure
 
-- describe(`<module-name> <integrations/services>`, () => { 
+- describe(`<module-name> <integrations or services test>`, () => { 
   - describe('success ', () => { ... })
+    - describe(`list`, () => { ... })
+      - (must) it('should return correct response', async () => { ... }) 
+      - (if exist) it('should return correct response with query params', async () => { ... })
+      - (if exist) it('should return correct response with body params', async () => { ... })
+      - (if exist) it('should return correct response with path params', async () => { ... })
+    - if the module has other route actions, add describe for each action:
+    - describe(`post`, () => { ... })
+      - (must) it('should return correct response', async () => { ... }) 
+    - describe(`patch`, () => { ... })
+    - describe(`delete`, () => { ... })
   - describe('authorization', () => { ... })
     - 401 Unauthenticated already covered by `auth-middleware.test.ts`, no need to repeat in each module. 
-    - except if at route define the betterAuth macro with authorizationMiddleware
+    - 403 Unauthorized already covered by `auth-middleware.test.ts`, no need to repeat in each module.
   - describe('validation', () => { ... })
     - describe('body validation', () => { ... })
     - describe('query validation', () => { ... })
 
-## App Map (`src/`)
 
-- `index.ts`: wiring saja (`openapiPlugin` → `publicRoutes` → `protectedRoutes`, `app.listen(env.APP_PORT)`).
-- `lib/`: `auth.ts` (config better-auth), `pg-db.ts`, `resend-mailer.ts`, `elysia-plugins.ts` (`corsPlugin` + `openapiPlugin`).
-- `utils/`: `env.ts` (`APP_URL`/`APP_PORT`, `CORS_ORIGIN_ALLOWED`), `auth-utils.ts` (`GMAIL_ONLY`, `RELEVANT_AUTH_PATHS`, `betterAuthView`, `betterAuthRouteHook`), `openapi-utils.ts` (`OpenAPI`), `in-memory-rate-limiter.ts`, `routes.ts`, `utils.ts`.
-- `middleware/`: `public-middleware.ts` (rate-limit, `decorate` `getDate`+`limiter`), `auth-middleware.ts` (`resolve` scoped → `{ userId, user, session }`, 401 tanpa session).
-- `modules/products/`: contoh route publik `GET /products` (dummy, belum ke DB).
-- `db/`: `auth-schema.ts` dipakai; `schema.ts` belum diimport siapa pun.
-- Route publik: `cors` + rate-limit + `productsApp` + `.all('/api/auth/*')` (catch-all semua method ke Better Auth, `hide: true` dari docs). Route proteksi: `authMiddleware`.
 
 ## Env & Commands
 

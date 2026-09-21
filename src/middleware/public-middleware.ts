@@ -1,9 +1,9 @@
+import { redis } from 'bun';
 import { Elysia } from 'elysia';
 import { env } from '@/constants/env';
-import { redis } from 'bun';
 
 export const ipRateLimiterMiddleware = new Elysia({
-  name: 'public-middleware',
+  name: 'public.middleware',
 }).onBeforeHandle(
   { as: 'global' },
   async ({ request, server, headers, set }) => {

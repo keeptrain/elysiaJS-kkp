@@ -52,10 +52,7 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/my?limit=2`,
-            { headers }
-          )
+          new Request(`${base}/api/organizations/my?limit=2`, { headers })
         );
         expect(response.status).toBe(200);
         expect((await response.json()).items).toHaveLength(2);
@@ -72,10 +69,7 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/my?limit=2`,
-            { headers }
-          )
+          new Request(`${base}/api/organizations/my?limit=2`, { headers })
         );
         const data = await response.json();
         expect(response.status).toBe(200);
@@ -94,10 +88,7 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/my?limit=5`,
-            { headers }
-          )
+          new Request(`${base}/api/organizations/my?limit=5`, { headers })
         );
         const data = await response.json();
         expect(response.status).toBe(200);
@@ -120,10 +111,10 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/abc?search=abc`,
-            { headers, method: 'POST' }
-          )
+          new Request(`${base}/api/organizations/abc?search=abc`, {
+            headers,
+            method: 'POST',
+          })
         );
         expect(response.status).toBe(200);
       });
@@ -141,10 +132,7 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/my?limit=invalid`,
-            { headers }
-          )
+          new Request(`${base}/api/organizations/my?limit=invalid`, { headers })
         );
         expect(response.status).toBe(422);
       });
@@ -160,10 +148,10 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/abc?search=ab`,
-            { headers, method: 'POST' }
-          )
+          new Request(`${base}/api/organizations/abc?search=ab`, {
+            headers,
+            method: 'POST',
+          })
         );
         expect(response.status).toBe(422);
       });
@@ -179,10 +167,10 @@ describe('organizations <integrations/services>', () => {
         });
 
         const response = await app.handle(
-          new Request(
-            `${base}/api/organizations/abc?search=abc`,
-            { headers, method: 'POST' }
-          )
+          new Request(`${base}/api/organizations/abc?search=abc`, {
+            headers,
+            method: 'POST',
+          })
         );
         expect(response.status).toBe(200);
       });

@@ -47,7 +47,7 @@ const orgRequirementSchema = t.Object({
 export type AuthorizationRequirement = Static<typeof orgRequirementSchema>;
 
 export const authorizationMiddleware = new Elysia<'', typeof chainedSession>({
-  name: 'authorization-middleware',
+  name: 'authorization.middleware',
 }).macro({
   authorize: (requirement: AuthorizationRequirement) => ({
     resolve: ({ session, user, organization }) => {

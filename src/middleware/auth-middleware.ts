@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
-import { auth } from '@/lib/auth';
 import type { userOrganizations } from '@/db/schema';
+import { auth } from '@/lib/auth';
 
 type MemberRow = typeof userOrganizations.$inferSelect;
 
@@ -13,7 +13,7 @@ export type SessionWithOrg = typeof auth.$Infer.Session & {
 };
 
 export const betterAuth = new Elysia({
-  name: 'better-auth',
+  name: 'better.auth',
 }).macro({
   auth: {
     async resolve({ status, request: { headers } }) {

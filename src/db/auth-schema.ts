@@ -1,10 +1,10 @@
 import {
-  pgTable,
-  text,
-  timestamp,
   boolean,
   index,
   jsonb,
+  pgTable,
+  text,
+  timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -26,6 +26,8 @@ export const users = pgTable('users', {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+export type UserSchema = typeof users.$inferSelect;
 
 export const sessions = pgTable(
   'sessions',
