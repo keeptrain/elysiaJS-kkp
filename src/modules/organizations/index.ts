@@ -1,4 +1,4 @@
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 import { userModule } from '../users';
@@ -34,9 +34,6 @@ export const organizationRoutes = new Elysia({
       },
     }
   )
-  .post('abc', async () => 'ok', {
-    query: t.Object({ search: t.String({ minLength: 3 }) }),
-  })
   .post(
     'my/add',
     async ({ body, organization }) => {
