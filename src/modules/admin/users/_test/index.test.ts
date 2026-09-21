@@ -1,15 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { treaty } from '@elysia/eden';
 import type { TestHelpers } from 'better-auth/plugins';
-import { users } from '@/db/auth-schema';
 import { app } from '@/index';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/pg-db';
-import type { UsersAction } from '@/modules/admin/users';
 import { cleanAuthDb, createAdminUser } from '@/modules/auth/_test/utils';
 
 const api = treaty(app).api;
-type ActionBody = UsersAction;
 
 describe('admin users', () => {
   let test: TestHelpers;
@@ -21,7 +17,6 @@ describe('admin users', () => {
 
   beforeEach(async () => {
     await cleanAuthDb();
-    await db.delete(users);
   });
 
   async function authed(email: string) {
@@ -61,18 +56,27 @@ describe('admin users', () => {
 
     it('returns list with search filter', async () => {
       const { headers, cleanup } = await authed('l2@test.com');
-      const user = test.createUser({ email: 'searchtest@test.com', name: 'SearchTest' });
+      const user = test.createUser({
+        email: 'searchtest@test.com',
+        name: 'SearchTest',
+      });
       await test.saveUser(user);
 
       const all = await api.users.get({ query: {}, headers });
       expect(all.status).toBe(200);
       expect((all.data as { items: unknown[] }).items).toHaveLength(2);
 
-      const searched = await api.users.get({ query: { search: 'SearchTest' }, headers });
+      const searched = await api.users.get({
+        query: { search: 'SearchTest' },
+        headers,
+      });
       expect(searched.status).toBe(200);
       expect((searched.data as { items: unknown[] }).items).toHaveLength(1);
 
-      const noMatch = await api.users.get({ query: { search: 'nonexistent' }, headers });
+      const noMatch = await api.users.get({
+        query: { search: 'nonexistent' },
+        headers,
+      });
       expect(noMatch.status).toBe(200);
       expect((noMatch.data as { items: unknown[] }).items).toHaveLength(0);
 
@@ -88,7 +92,10 @@ describe('admin users', () => {
         await test.saveUser(u);
       }
 
-      const { data, status } = await api.users.get({ query: { limit }, headers });
+      const { data, status } = await api.users.get({
+        query: { limit },
+        headers,
+      });
       const resp = data as { items: unknown[]; nextCursor: string | null };
       expect(status).toBe(200);
       expect(resp.items).toHaveLength(limit);
@@ -109,12 +116,18 @@ describe('admin users', () => {
 
       const first = await api.users.get({ query: { limit }, headers });
       expect(first.status).toBe(200);
-      const firstData = first.data as { items: { id: string }[]; nextCursor: string | null };
+      const firstData = first.data as {
+        items: { id: string }[];
+        nextCursor: string | null;
+      };
       expect(firstData.items).toHaveLength(limit);
       const cursor = firstData.nextCursor;
       expect(cursor).toBeDefined();
 
-      const second = await api.users.get({ query: { limit, cursor: cursor! }, headers });
+      const second = await api.users.get({
+        query: { limit, cursor: cursor! },
+        headers,
+      });
       expect(second.status).toBe(200);
       const secondData = second.data as { items: { id: string }[] };
       expect(secondData.items.length).toBeLessThanOrEqual(limit);
@@ -158,7 +171,8 @@ describe('admin users', () => {
     it('getById without id returns 422', async () => {
       const { headers, cleanup } = await authed('g3@test.com');
       const res = await api.users.actions.post(
-        { action: 'getById' } as unknown as ActionBody,
+        // @ts-ignore
+        { action: 'getById' },
         { headers }
       );
       expect(res.status).toBe(422);
@@ -199,7 +213,8 @@ describe('admin users', () => {
     it('delete without id returns 422', async () => {
       const { headers, cleanup } = await authed('d3@test.com');
       const res = await api.users.actions.post(
-        { action: 'delete' } as unknown as ActionBody,
+        // @ts-ignore
+        { action: 'delete' },
         { headers }
       );
       expect(res.status).toBe(422);
@@ -212,7 +227,8 @@ describe('admin users', () => {
     it('rejects unknown action', async () => {
       const { headers, cleanup } = await authed('v1@test.com');
       const res = await api.users.actions.post(
-        { action: 'invalidAction' } as unknown as ActionBody,
+        // @ts-ignore
+        { action: 'invalidAction' },
         { headers }
       );
       expect(res.status).toBe(422);
@@ -221,9 +237,13 @@ describe('admin users', () => {
 
     it('rejects empty body', async () => {
       const { headers, cleanup } = await authed('v2@test.com');
-      const res = await api.users.actions.post({} as unknown as ActionBody, {
-        headers,
-      });
+      const res = await api.users.actions.post(
+        // @ts-ignore
+        {},
+        {
+          headers,
+        }
+      );
       expect(res.status).toBe(422);
       await cleanup();
     });
