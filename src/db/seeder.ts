@@ -1,40 +1,36 @@
-import { randomUUIDv7 } from 'bun';
+import { reset } from 'drizzle-seed';
+import { env } from '@/constants/env';
 import * as schemas from '@/db/schema';
 import { db } from '@/lib/pg-db';
+import {
+  organizationSeeder,
+  userOrganizationSeeder,
+} from './seeders/organization.seed';
 
-export async function defaultSeeders() {
-  await organizationSeeder();
+const FORCE = process.argv.includes('--force');
+
+if (!FORCE && (env.NODE_ENV === 'staging' || env.isProduction)) {
+  console.error(
+    `⚠️  Database seeding is blocked for ${env.NODE_ENV} environment.` +
+      `\n   Use "bun run src/db/seed.ts --force" to override.`
+  );
+  process.exit(1);
 }
 
-export async function organizationSeeder() {
-  const uptNames = [
-    'Balai Perikanan Budidaya Air Tawar Sungai Gelam',
-    'Balai Perikanan Budidaya Air Tawar Mandiangin',
-    'Balai Perikanan Budidaya Air Tawar Tatelu',
-    'Balai Perikanan Budidaya Air Payau Situbondo',
-    'Balai Perikanan Budidaya Air Payau Takalar',
-    'Balai Perikanan Budidaya Air Payau Ujung Batee',
-    'Balai Perikanan Budidaya Laut Batam',
-    'Balai Perikanan Budidaya Laut Lombok',
-    'Balai Perikanan Budidaya Laut Ambon',
-    'Balai Layanan Usaha Produksi Perikanan Budidaya, Karawang',
-    'Balai Produksi Induk Udang Unggul Dan Kekerangan Karangasem, Bali',
-    'Balai Pengujian Kesehatan Ikan Dan Lingkungan, Serang',
-    'Balai Besar Perikanan Budidaya Air Tawar Sukabumi',
-    'Balai Besar Perikanan Budidaya Air Payau Jepara',
-    'Balai Besar Perikanan Budidaya Laut Lampung',
-  ];
+export async function defaultSeeders() {
+  await reset(db, schemas);
+  await organizationSeeder();
+  await userOrganizationSeeder();
+}
 
-  const organizationsData = uptNames.map((name) => {
-    const id = randomUUIDv7();
-    return {
-      id: id,
-      name: name,
-      code: `UPT-${id}`,
-    };
-  });
-
-  await db.insert(schemas.organizations).values({
-    ...organizationsData,
-  });
+if (import.meta.main) {
+  console.log(`🌱 Seeding database (${env.NODE_ENV}) ...`);
+  try {
+    await defaultSeeders();
+    console.log('✅ Seeding complete.');
+    process.exit(0);
+  } catch (err) {
+    console.error('❌ Seeding failed:', err);
+    process.exit(1);
+  }
 }

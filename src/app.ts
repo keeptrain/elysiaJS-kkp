@@ -5,8 +5,7 @@ import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
 import { organizationsApp } from '@/modules/admin/organizations';
 import { adminUsersModule } from '@/modules/admin/users';
 import { productsApp } from '@/modules/products';
-
-import { authRoutes } from './modules/auth';
+import { auth } from './lib/auth';
 import { organizationRoutes } from './modules/organizations';
 import { userServices } from './modules/users/service';
 
@@ -22,7 +21,7 @@ export const app = new Elysia({ prefix: '/api' })
   .use(corsPlugin)
   // .use(ipRateLimiterMiddleware)
   .use(openapiPlugin)
-  .use(authRoutes)
+  .mount(auth.handler)
   .use(publicRoutes)
   .use(protectedRoutes);
 

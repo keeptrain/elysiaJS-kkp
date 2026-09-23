@@ -1,3 +1,5 @@
+import { test } from 'bun:test';
+import { treaty } from '@elysia/eden';
 import Elysia, { t } from 'elysia';
 import { auth } from '@/lib/auth';
 
@@ -11,36 +13,6 @@ const signInSocialBody = t.Object({
   callbackURL: t.Optional(t.String({ format: 'uri' })),
 });
 
-export const authRoutes = new Elysia({ prefix: '/auth' })
-  .post(
-    '/sign-in/email-otp',
-    ({ body }) =>
-      auth.api.signInEmailOTP({
-        body,
-      }),
-    {
-      body: signInEmailOtpBody,
-    }
-  )
-  .post(
-    '/sign-in/social',
-    ({ body }) =>
-      auth.api.signInSocial({
-        body,
-      }),
-    {
-      body: signInSocialBody,
-    }
-  )
-  .get('/get-session', ({ headers }) =>
-    auth.api.getSession({
-      headers: new Headers(headers as HeadersInit),
-    })
-  )
-  .post('/sign-out', ({ headers }) =>
-    auth.api.signOut({
-      headers: new Headers(headers as HeadersInit),
-    })
-  );
+export const authRoutes = new Elysia({ prefix: '/auth' }).mount(auth.handler);
 
 export type AuthRoutes = typeof authRoutes;
