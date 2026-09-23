@@ -1,7 +1,5 @@
 import { Elysia } from 'elysia';
 import { corsPlugin, openapiPlugin } from '@/lib/elysia-plugins';
-import {} from '@/middleware/auth-middleware';
-import { ipRateLimiterMiddleware } from '@/middleware/public-middleware';
 import { organizationsApp } from '@/modules/admin/organizations';
 import { adminUsersModule } from '@/modules/admin/users';
 import { productsApp } from '@/modules/products';
@@ -18,20 +16,6 @@ const protectedRoutes = new Elysia()
   .use(organizationRoutes);
 
 export const app = new Elysia({ prefix: '/api' })
-  .onError(({ code, set }) => {
-    if (code === 'VALIDATION') {
-      set.status = 422;
-      return { message: 'Invalid request' };
-    }
-
-    if (code === 'NOT_FOUND') {
-      set.status = 404;
-      return { message: 'Route not found' };
-    }
-
-    set.status = 500;
-    return { message: 'Internal server error' };
-  })
   .use(corsPlugin)
   // .use(ipRateLimiterMiddleware)
   .use(openapiPlugin)
