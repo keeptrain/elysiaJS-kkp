@@ -1,4 +1,4 @@
-import Elysia, { type Static, status, t } from 'elysia';
+import Elysia, { type Static, t } from 'elysia';
 import {
   MAGANG_ROLES,
   MARKETPLACE_ROLES,
@@ -41,9 +41,8 @@ export const authorizationMiddleware = new Elysia({
 }).macro({
   authorize: (requirement: AuthorizationRequirement) => ({
     resolve: async ({ request, status }) => {
-      const headers = request.headers;
       const session = (await auth.api.getSession({
-        headers,
+        headers: request.headers,
       })) as unknown as SessionWithOrg | null;
 
       if (!session) {
@@ -51,6 +50,27 @@ export const authorizationMiddleware = new Elysia({
       }
 
       if (requirement.kinds) {
+        const hasAdmin = requirement.kinds.includes('admin');
+        const hasOrg = requirement.kinds.includes('organization');
+
+        if (hasAdmin && (requirement.positions || requirement.roles)) {
+          return status(
+            422,
+            'Validation error: admin kind cannot have positions or roles'
+          );
+        }
+
+        if (hasOrg && !hasAdmin) {
+          const hasPositions = requirement.positions !== undefined;
+          const hasRoles = requirement.roles !== undefined;
+          if (!hasPositions || !hasRoles) {
+            return status(
+              422,
+              'Validation error: organization kind requires both positions and roles'
+            );
+          }
+        }
+
         const isAdmin = session.user.metadata?.kind === 'admin';
         const isOrganization = session.organization !== null;
         const matchesKind =

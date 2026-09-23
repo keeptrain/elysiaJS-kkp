@@ -1,7 +1,7 @@
 import type { TestHelpers } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
-import { db } from '@/lib/pg-db';
 import { accounts, sessions, users, verifications } from '@/db/auth-schema';
+import { db } from '@/lib/pg-db';
 
 export async function createUser(test: TestHelpers, email?: string) {
   const user = email ? test.createUser({ email }) : test.createUser();

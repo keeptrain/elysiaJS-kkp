@@ -1,13 +1,15 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
+import { reset } from 'drizzle-seed';
 import { Elysia } from 'elysia';
 import { env } from '@/constants/env';
+import { auths, users } from '@/db/auth-schema';
+import { organizations, userOrganizations } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import {
-  cleanOrgDb,
-  createMemberUser,
-} from '@/modules/admin/organizations/_test/utils';
-import { adminHeaders, cleanAuthDb } from '@/modules/auth/_test/utils';
+import { db } from '@/lib/pg-db';
+import { createMemberUser } from '@/modules/admin/organizations/_test/utils';
+import { adminHeaders, createUser } from '@/modules/auth/_test/utils';
 import {
   type AuthorizationRequirement,
   authorizationMiddleware,
@@ -22,11 +24,9 @@ describe('authorizatioin-middleware.test.ts', () => {
   });
 
   beforeEach(async () => {
-    await cleanAuthDb();
-    await cleanOrgDb();
+    await reset(db, { ...auths, organizations, userOrganizations });
   });
 
-  // Member UPT + headers sesi. Admin pusat pakai adminHeaders.
   async function memberHeaders(opts: {
     email: string;
     position?: string;
@@ -41,16 +41,22 @@ describe('authorizatioin-middleware.test.ts', () => {
     return headers;
   }
 
+  const kindRoute = (requirement: AuthorizationRequirement) =>
+    new Elysia()
+      .use(authorizationMiddleware)
+      .get('/dummy-kind-route', () => ({ ok: true }), {
+        authorize: requirement,
+      });
+
+  const kindOrgRoute = (requirement: AuthorizationRequirement) =>
+    new Elysia()
+      .use(authorizationMiddleware)
+      .get('/dummy-kind-org-route', () => ({ ok: true }), {
+        authorize: requirement,
+      });
+
   describe('user.metadata.kind admin success', () => {
     const dummyKindRoute = `${env.APP_URL}/dummy-kind-route`;
-
-    function kindRoute(requirement: AuthorizationRequirement) {
-      return new Elysia()
-        .use(authorizationMiddleware)
-        .get('/dummy-kind-route', () => ({ ok: true }), {
-          authorize: requirement,
-        });
-    }
 
     it('should success if authorization only need kind admin', async () => {
       const headers = await adminHeaders(
@@ -59,9 +65,7 @@ describe('authorizatioin-middleware.test.ts', () => {
       );
 
       const res = await kindRoute({ kinds: ['admin'] }).handle(
-        new Request(dummyKindRoute, {
-          headers,
-        })
+        new Request(dummyKindRoute, { headers })
       );
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ ok: true });
@@ -69,161 +73,111 @@ describe('authorizatioin-middleware.test.ts', () => {
   });
 
   describe('user.metadata.kind organization success', () => {
-    it('should success if authorization only need kind organization', async () => {
+    it('should return 200 when kind organization roles and position in request body and user has matching roles and position', async () => {
       const headers = await memberHeaders({
         email: `mw-org-${Date.now()}@gmail.com`,
+        position: 'head',
         roles: ['shop_operator'],
       });
+
+      const res = await kindOrgRoute({
+        kinds: ['organization'],
+        positions: ['head'],
+        roles: ['shop_operator'],
+      }).handle(
+        new Request(`${env.APP_URL}/dummy-kind-org-route`, { headers })
+      );
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe('error', () => {
+    it('should return 403 when kind organization but user not in organization', async () => {
+      const user = await createUser(test, `mw-no-org-${Date.now()}@gmail.com`);
+      await db
+        .update(users)
+        .set({ metadata: { kind: 'organization' } })
+        .where(eq(users.id, user.id));
+      const { headers } = await test.login({ userId: user.id });
+
+      const res = await kindOrgRoute({
+        kinds: ['organization'],
+        positions: ['head'],
+        roles: ['shop_operator'],
+      }).handle(
+        new Request(`${env.APP_URL}/dummy-kind-org-route`, { headers })
+      );
+      expect(res.status).toBe(403);
     });
   });
 
   describe('validation', () => {
+    it('should return 422 when kind organization roles but no position in request body', async () => {
+      const headers = await memberHeaders({
+        email: `mw-role-${Date.now()}@gmail.com`,
+        position: 'head',
+        roles: ['shop_operator'],
+      });
+
+      const res = await kindOrgRoute({
+        kinds: ['organization'],
+        roles: ['shop_operator'],
+      }).handle(
+        new Request(`${env.APP_URL}/dummy-kind-org-route`, { headers })
+      );
+      expect(res.status).toBe(422);
+    });
+
+    it('should return 422 when kind organization position but no roles in request body', async () => {
+      const headers = await memberHeaders({
+        email: `mw-pos-${Date.now()}@gmail.com`,
+        position: 'head',
+        roles: ['shop_operator'],
+      });
+
+      const res = await kindOrgRoute({
+        kinds: ['organization'],
+        positions: ['head'],
+      }).handle(
+        new Request(`${env.APP_URL}/dummy-kind-org-route`, { headers })
+      );
+      expect(res.status).toBe(422);
+    });
+
+    it('should return 422 when kind organization but no position/roles in request body', async () => {
+      const headers = await memberHeaders({
+        email: `mw-no-pos-${Date.now()}@gmail.com`,
+        position: 'head',
+        roles: ['shop_operator'],
+      });
+
+      const res = await kindOrgRoute({
+        kinds: ['organization'],
+      }).handle(
+        new Request(`${env.APP_URL}/dummy-kind-org-route`, { headers })
+      );
+      expect(res.status).toBe(422);
+    });
+
+    it('should return 422 when kind admin but position/roles in request body', async () => {
+      const headers = await adminHeaders(
+        test,
+        `mw-admin-role-${Date.now()}@gmail.com`
+      );
+
+      const res = await kindRoute({
+        kinds: ['admin'],
+        positions: ['head'],
+        roles: ['shop_operator'],
+      }).handle(new Request(`${env.APP_URL}/dummy-kind-route`, { headers }));
+      expect(res.status).toBe(422);
+    });
+
     it('should return 401 if no session', async () => {
-      const res = await new Elysia()
-        .use(authorizationMiddleware)
-        .get('/dummy-kind-route', () => ({ ok: true }), {
-          authorize: { kinds: ['admin'] },
-        })
-        .handle(new Request(`${env.APP_URL}/dummy-kind-route`));
+      const res = await kindRoute({ kinds: ['admin'] }).handle(
+        new Request(`${env.APP_URL}/dummy-kind-route`)
+      );
       expect(res.status).toBe(401);
     });
   });
-  // it('200 untuk admin di kinds admin', async () => {
-  //   const headers = await adminHeaders(
-  //     test,
-  //     `mw-admin-${Date.now()}@gmail.com`
-  //   );
-  //   const res = await kindRoute({ kinds: ['admin'] }).handle(
-  //     new Request(`${base}/mw`, { headers })
-  //   );
-  //   expect(res.status).toBe(200);
-  //   expect(await res.json()).toEqual({ ok: true });
-  // });
-  // it('200 untuk member di kinds organization', async () => {
-  //   const headers = await memberHeaders({
-  //     email: `mw-org-${Date.now()}@gmail.com`,
-  //     roles: ['shop_operator'],
-  //   });
-  //   const res = await kindRoute({ kinds: ['organization'] }).handle(
-  //     new Request(`${base}/mw`, { headers })
-  //   );
-  //   expect(res.status).toBe(200);
-  // });
-  // it('403 member di kinds admin', async () => {
-  //   const headers = await memberHeaders({
-  //     email: `mw-deny-${Date.now()}@gmail.com`,
-  //     roles: ['shop_operator'],
-  //   });
-  //   const res = await kindRoute({ kinds: ['admin'] }).handle(
-  //     new Request(`${base}/mw`, { headers })
-  //   );
-  //   expect(res.status).toBe(403);
-  // });
-  // it('401 tanpa session', async () => {
-  //   const res = await kindRoute({ kinds: ['admin'] }).handle(
-  //     new Request(`${base}/mw`)
-  //   );
-  //   expect(res.status).toBe(401);
-  // });
-
-  // ── Org macro ─────────────────────────────────────────────
-  // describe('organization-middleware', () => {
-  //   const dummyOrgRoute = `${env.APP_URL}/dummy-org-route`;
-
-  //   function orgRoute(requirement: AuthorizationRequirement = {}) {
-  //     return new Elysia()
-  //       .use(betterAuth)
-  //       .use(authorizationMiddleware)
-  //       .get('/dummy-org-route', () => ({ ok: true }), {
-  //         auth: true,
-  //         authorize: requirement,
-  //       });
-  //   }
-
-  //   it('200 organization', async () => {
-  //     const headers = await memberHeaders({
-  //       email: `mw-base-${Date.now()}@gmail.com`,
-  //       roles: ['shop_operator'],
-  //     });
-  //     const res = await orgRoute().handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(200);
-  //     expect(await res.json()).toEqual({ ok: true });
-  //   });
-
-  //   it('200 when head organization has any roles', async () => {
-  //     const headers = await memberHeaders({
-  //       email: `mw-head-${Date.now()}@gmail.com`,
-  //       position: 'head',
-  //       roles: ['shop_admin'],
-  //     });
-  //     const res = await orgRoute({ positions: ['head'] }).handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(200);
-  //   });
-
-  //   it('200 matching roles', async () => {
-  //     const headers = await memberHeaders({
-  //       email: `mw-role-${Date.now()}@gmail.com`,
-  //       roles: ['shop_admin'],
-  //     });
-  //     const res = await orgRoute({ roles: ['shop_admin'] }).handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(200);
-  //   });
-
-  //   it('401 without session betterAuth', async () => {
-  //     const res = await orgRoute().handle(new Request(dummyOrgRoute));
-  //     expect(res.status).toBe(401);
-  //   });
-
-  //   it('403 when admin without membership (without bypass)', async () => {
-  //     const headers = await adminHeaders(
-  //       test,
-  //       `mw-nobypass-${Date.now()}@gmail.com`
-  //     );
-  //     const res = await orgRoute({ roles: ['shop_admin'] }).handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(403);
-  //   });
-
-  //   it('403 when position staff on roles shop_operator', async () => {
-  //     const headers = await memberHeaders({
-  //       email: `mw-staff-${Date.now()}@gmail.com`,
-  //       position: 'staff',
-  //       roles: ['shop_operator'],
-  //     });
-  //     const res = await orgRoute({ positions: ['head'] }).handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(403);
-  //   });
-
-  //   it('403 when not matching roles', async () => {
-  //     const headers = await memberHeaders({
-  //       email: `mw-norole-${Date.now()}@gmail.com`,
-  //       roles: ['shop_operator'],
-  //     });
-
-  //     const res = await orgRoute({ roles: ['shop_admin'] }).handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(403);
-  //   });
-
-  //   it('403 when roles asserted but positions not', async () => {
-  //     const headers = await memberHeaders({
-  //       email: `mw-nomember-${Date.now()}@gmail.com`,
-  //     });
-
-  //     const res = await orgRoute({ roles: ['shop_admin'] }).handle(
-  //       new Request(dummyOrgRoute, { headers })
-  //     );
-  //     expect(res.status).toBe(403);
-  //   });
-  // });
 });

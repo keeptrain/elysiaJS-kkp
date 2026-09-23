@@ -1,16 +1,12 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { db } from '@/lib/pg-db';
-import { accounts, sessions, users, verifications } from '@/db/auth-schema';
-import { app } from '@/index';
+import { beforeAll, beforeEach, describe } from 'bun:test';
+import type { TestHelpers } from 'better-auth/plugins';
+import { reset } from 'drizzle-seed';
+import { auths } from '@/db/auth-schema';
 import { auth } from '@/lib/auth';
-import { TestHelpers } from 'better-auth/plugins';
-import { cleanAuthDb } from '@/modules/auth/_test/utils';
-import { desc } from 'drizzle-orm';
-
-const base = 'http://localhost:3000';
+import { db } from '@/lib/pg-db';
 
 beforeEach(async () => {
-  await cleanAuthDb();
+  await reset(db, { ...auths });
 });
 
 describe('auth-middleware ', () => {
@@ -20,10 +16,4 @@ describe('auth-middleware ', () => {
     const ctx = await auth.$context;
     test = ctx.test;
   });
-
-  describe('bad path', () => {
-    it('get-session null saat belum login', async () => {});
-  });
-
-  describe('bad path', () => {});
 });

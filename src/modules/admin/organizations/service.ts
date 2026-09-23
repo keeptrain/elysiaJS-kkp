@@ -1,12 +1,12 @@
-import { and, desc, eq, like } from 'drizzle-orm';
 import { randomUUIDv7 } from 'bun';
+import { and, desc, eq, like } from 'drizzle-orm';
+import type { AppRole, OrganizationPosition } from '@/constants/access-control';
+import { organizations, userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import {
   findMemberByUserId,
   invalidateMemberCache,
 } from '@/modules/organizations/membership';
-import { organizations, userOrganizations } from '@/db/schema';
-import type { AppRole, OrganizationPosition } from '@/constants/access-control';
 
 export const organizationService = {
   async list(filters?: { search?: string }) {

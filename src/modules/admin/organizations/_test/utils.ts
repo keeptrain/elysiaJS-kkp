@@ -1,7 +1,7 @@
 import type { TestHelpers } from 'better-auth/plugins';
 import { randomUUIDv7 } from 'bun';
-import { db } from '@/lib/pg-db';
 import { organizations, userOrganizations } from '@/db/schema';
+import { db } from '@/lib/pg-db';
 import { createUser } from '@/modules/auth/_test/utils';
 
 // User UPT + membership. 1 user = 1 UPT.
@@ -30,9 +30,4 @@ export async function createMemberUser(
     roles: opts.roles,
   });
   return { user, org };
-}
-
-export async function cleanOrgDb(): Promise<void> {
-  await db.delete(userOrganizations);
-  await db.delete(organizations);
 }

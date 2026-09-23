@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { randomUUIDv7 } from 'bun';
-import { db } from '@/lib/pg-db';
-import { redis } from '@/lib/bun-redis';
-import { organizations, userOrganizations } from '@/db/schema';
-import { organizationService } from '@/modules/admin/organizations/service';
-import { auth } from '@/lib/auth';
 import type { TestHelpers } from 'better-auth/plugins';
+import { randomUUIDv7 } from 'bun';
+import { organizations, userOrganizations } from '@/db/schema';
+import { auth } from '@/lib/auth';
+import { redis } from '@/lib/bun-redis';
+import { db } from '@/lib/pg-db';
+import { organizationService } from '@/modules/admin/organizations/service';
 import { cleanAuthDb } from '@/modules/auth/_test/utils';
 
 describe('findMemberByUserId cache-aside', () => {
