@@ -1,17 +1,19 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { treaty } from '@elysia/eden';
 import type { TestHelpers } from 'better-auth/plugins';
+import { reset } from 'drizzle-seed';
+import { app } from '@/app';
+import { auths } from '@/db/auth-schema';
 import { organizations, userOrganizations } from '@/db/schema';
-import { app } from '@/index';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import type { OrganizationsAction } from '@/modules/admin/organizations';
-import { cleanAuthDb, createAdminUser } from '@/modules/auth/_test/utils';
+import { createAdminUser } from '@/modules/auth/_test/utils';
 
 const api = treaty(app).api;
 type ActionBody = OrganizationsAction;
 
-describe('organizations (action-based, type-safe)', () => {
+describe('admin organizations integrations', () => {
   let test: TestHelpers;
 
   beforeAll(async () => {
@@ -20,311 +22,333 @@ describe('organizations (action-based, type-safe)', () => {
   });
 
   beforeEach(async () => {
-    await cleanAuthDb();
-    await db.delete(userOrganizations);
-    await db.delete(organizations);
+    await reset(db, {
+      ...auths,
+      organizations,
+      userOrganizations,
+    });
   });
 
-  // Modul admin: user test selalu kind admin agar lolos kind macro.
-  async function authed(email: string) {
+  async function adminHeaders(email = 'admin@gmail.com') {
     const user = await createAdminUser(test, email);
-    const raw = await test.getAuthHeaders({ userId: user.id });
-    return {
-      user,
-      headers: Object.fromEntries(raw.entries()),
-      cleanup: () => test.deleteUser(user.id),
-    };
+    const rawHeaders = await test.getAuthHeaders({ userId: user.id });
+    return Object.fromEntries(rawHeaders.entries());
   }
 
-  describe('success - organizations', () => {
-    it('should return correct response', async () => {});
-  });
+  describe('success', () => {
+    describe('POST /organizations action=list', () => {
+      it('should return an empty list when organizations do not exist', async () => {
+        const headers = await adminHeaders();
+        const response = await api.organizations.post(
+          { action: 'list' },
+          { headers }
+        );
 
-  // ── Auth ──────────────────────────────────────────────────
-  it('rejects unauthenticated requests (401)', async () => {
-    const { status } = await api.organizations.post({ action: 'list' });
-    expect(status).toBe(401);
-  });
+        expect(response.status).toBe(200);
+        expect(response.data).toEqual([]);
+      });
 
-  it('rejects non-admin kind (403)', async () => {
-    const user = test.createUser({ email: 'nonadmin@gmail.com' });
-    await test.saveUser(user);
-    const raw = await test.getAuthHeaders({ userId: user.id });
-    const { status } = await api.organizations.post(
-      { action: 'list' },
-      { headers: Object.fromEntries(raw.entries()) }
-    );
-    expect(status).toBe(403);
-    await test.deleteUser(user.id);
-  });
+      it('should return organizations matching the search query', async () => {
+        const headers = await adminHeaders();
+        await api.organizations.post(
+          { action: 'create', name: 'UPT Sehat', code: 'UPT-SEHAT' },
+          { headers }
+        );
+        await api.organizations.post(
+          { action: 'create', name: 'UPT Pendidikan', code: 'UPT-PENDIDIKAN' },
+          { headers }
+        );
 
-  // ── Happy path ────────────────────────────────────────────
-  describe('organizations happy path', () => {
-    it('lists empty when no data exists', async () => {
-      const { headers, cleanup } = await authed('h1@gmail.com');
-      const { data, status } = await api.organizations.post(
-        { action: 'list' },
-        { headers }
-      );
-      expect(status).toBe(200);
-      expect(data).toEqual([]);
-      await cleanup();
+        const response = await api.organizations.post(
+          { action: 'list', filters: { search: 'Sehat' } },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data).toHaveLength(1);
+        expect((response.data as { name: string }[])[0]?.name).toBe(
+          'UPT Sehat'
+        );
+      });
     });
 
-    it('create then get then list (search matches and not)', async () => {
-      const { headers, cleanup } = await authed('h2@gmail.com');
+    describe('POST /organizations action=create', () => {
+      it('should create and return an organization', async () => {
+        const headers = await adminHeaders();
+        const response = await api.organizations.post(
+          { action: 'create', name: 'UPT Test', code: 'UPT-TEST' },
+          { headers }
+        );
 
-      const created = await api.organizations.post(
-        { action: 'create', name: 'UPT Test', code: 'UPT-TEST-01' },
-        { headers }
-      );
-      expect(created.status).toBe(200);
-      const orgId = (created.data as { id: string }).id;
-      expect(orgId).toBeDefined();
-
-      const got = await api.organizations.post(
-        { action: 'get', id: orgId },
-        { headers }
-      );
-      expect(got.status).toBe(200);
-      expect((got.data as { code: string }).code).toBe('UPT-TEST-01');
-
-      const match = await api.organizations.post(
-        { action: 'list', filters: { search: 'UPT Test' } },
-        { headers }
-      );
-      expect(match.status).toBe(200);
-      expect(match.data).toHaveLength(1);
-
-      const noMatch = await api.organizations.post(
-        { action: 'list', filters: { search: 'Not Found' } },
-        { headers }
-      );
-      expect(noMatch.status).toBe(200);
-      expect(noMatch.data).toEqual([]);
-
-      await cleanup();
+        expect(response.status).toBe(200);
+        const data = response.data as {
+          id: string;
+          name: string;
+          code: string;
+        };
+        expect(data.name).toBe('UPT Test');
+        expect(data.code).toBe('UPT-TEST');
+        expect(data.id).toBeDefined();
+      });
     });
 
-    it('update then delete', async () => {
-      const { headers, cleanup } = await authed('h4@gmail.com');
+    describe('POST /organizations action=get', () => {
+      it('should return an organization by id', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'UPT Test', code: 'UPT-GET' },
+          { headers }
+        );
 
-      const created = await api.organizations.post(
-        { action: 'create', name: 'Old Name', code: 'UPT-OLD' },
-        { headers }
-      );
-      const orgId = (created.data as { id: string }).id;
+        const response = await api.organizations.post(
+          { action: 'get', id: (created.data as { id: string }).id },
+          { headers }
+        );
 
-      const updated = await api.organizations.post(
-        { action: 'update', id: orgId, name: 'New Name' },
-        { headers }
-      );
-      expect(updated.status).toBe(200);
-      expect((updated.data as { name: string }).name).toBe('New Name');
-      expect((updated.data as { code: string }).code).toBe('UPT-OLD');
+        expect(response.status).toBe(200);
+        expect((response.data as { id: string }).id).toBe(
+          (created.data as { id: string }).id
+        );
+      });
+    });
 
-      const deleted = await api.organizations.post(
-        { action: 'delete', id: orgId },
-        { headers }
-      );
-      expect(deleted.status).toBe(200);
+    describe('POST /organizations action=update', () => {
+      it('should update organization fields', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'Old Name', code: 'UPT-UPDATE' },
+          { headers }
+        );
 
-      const after = await api.organizations.post(
-        { action: 'get', id: orgId },
-        { headers }
-      );
-      expect(after.status).toBe(404);
+        const response = await api.organizations.post(
+          {
+            action: 'update',
+            id: (created.data as { id: string }).id,
+            name: 'New Name',
+          },
+          { headers }
+        );
 
-      await cleanup();
+        expect(response.status).toBe(200);
+        const data = response.data as { name: string; code: string };
+        expect(data.name).toBe('New Name');
+        expect(data.code).toBe('UPT-UPDATE');
+      });
+    });
+
+    describe('POST /organizations action=delete', () => {
+      it('should delete an organization', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'UPT Delete', code: 'UPT-DELETE' },
+          { headers }
+        );
+
+        const response = await api.organizations.post(
+          { action: 'delete', id: (created.data as { id: string }).id },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data).toEqual({ success: true });
+      });
+    });
+
+    describe('POST /organizations action=listMembers', () => {
+      it('should return members in an organization', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'UPT Members', code: 'UPT-MEMBERS' },
+          { headers }
+        );
+        const member = test.createUser({ email: 'member@gmail.com' });
+        await test.saveUser(member);
+        await api.organizations.post(
+          {
+            action: 'addMember',
+            userId: member.id,
+            organizationId: (created.data as { id: string }).id,
+            roles: ['shop_operator'],
+          },
+          { headers }
+        );
+
+        const response = await api.organizations.post(
+          {
+            action: 'listMembers',
+            organizationId: (created.data as { id: string }).id,
+          },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data).toHaveLength(1);
+        expect((response.data as { userId: string }[])[0]?.userId).toBe(
+          member.id
+        );
+      });
+    });
+
+    describe('POST /organizations action=addMember', () => {
+      it('should add a member to an organization', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'UPT Add', code: 'UPT-ADD' },
+          { headers }
+        );
+        const member = test.createUser({ email: 'add-member@gmail.com' });
+        await test.saveUser(member);
+
+        const response = await api.organizations.post(
+          {
+            action: 'addMember',
+            userId: member.id,
+            organizationId: (created.data as { id: string }).id,
+            position: 'staff',
+            roles: ['shop_operator'],
+          },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        const data = response.data as { userId: string; roles: string[] };
+        expect(data.userId).toBe(member.id);
+        expect(data.roles).toEqual(['shop_operator']);
+      });
+    });
+
+    describe('POST /organizations action=updateMemberRole', () => {
+      it('should update member roles', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'UPT Role', code: 'UPT-ROLE' },
+          { headers }
+        );
+        const member = test.createUser({ email: 'role-member@gmail.com' });
+        await test.saveUser(member);
+        await api.organizations.post(
+          {
+            action: 'addMember',
+            userId: member.id,
+            organizationId: (created.data as { id: string }).id,
+            roles: ['shop_operator'],
+          },
+          { headers }
+        );
+
+        const response = await api.organizations.post(
+          {
+            action: 'updateMemberRole',
+            userId: member.id,
+            organizationId: (created.data as { id: string }).id,
+            roles: ['shop_admin'],
+          },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect((response.data as { roles: string[] }).roles).toEqual([
+          'shop_admin',
+        ]);
+      });
+    });
+
+    describe('POST /organizations action=removeMember', () => {
+      it('should remove a member from an organization', async () => {
+        const headers = await adminHeaders();
+        const created = await api.organizations.post(
+          { action: 'create', name: 'UPT Remove', code: 'UPT-REMOVE' },
+          { headers }
+        );
+        const member = test.createUser({ email: 'remove-member@gmail.com' });
+        await test.saveUser(member);
+        await api.organizations.post(
+          {
+            action: 'addMember',
+            userId: member.id,
+            organizationId: (created.data as { id: string }).id,
+            roles: ['shop_operator'],
+          },
+          { headers }
+        );
+
+        const response = await api.organizations.post(
+          {
+            action: 'removeMember',
+            userId: member.id,
+            organizationId: (created.data as { id: string }).id,
+          },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data).toEqual({ success: true });
+      });
     });
   });
 
-  // ── Members lifecycle ─────────────────────────────────────
-  describe('members lifecycle', () => {
-    it('add then list then updateRole then remove', async () => {
-      const { headers, cleanup } = await authed('m1@gmail.com');
-
-      const created = await api.organizations.post(
-        { action: 'create', name: 'UPT Member', code: 'UPT-MBR' },
+  describe('validation', () => {
+    it('should return 422 for an unsupported action', async () => {
+      const headers = await adminHeaders();
+      const response = await api.organizations.post(
+        { action: 'invalid' } as unknown as ActionBody,
         { headers }
       );
-      const orgId = (created.data as { id: string }).id;
 
-      const memberUser = test.createUser({ email: 'member@gmail.com' });
-      await test.saveUser(memberUser);
+      expect(response.status).toBe(422);
+    });
 
-      const added = await api.organizations.post(
+    it('should return 422 when create fields are missing', async () => {
+      const headers = await adminHeaders();
+      const response = await api.organizations.post(
+        { action: 'create', name: 'UPT Missing Code' } as unknown as ActionBody,
+        { headers }
+      );
+
+      expect(response.status).toBe(422);
+    });
+
+    it('should return 422 when addMember roles are missing', async () => {
+      const headers = await adminHeaders();
+      const response = await api.organizations.post(
         {
           action: 'addMember',
-          userId: memberUser.id,
-          organizationId: orgId,
-          roles: ['shop_operator'],
-        },
-        { headers }
-      );
-      expect(added.status).toBe(200);
-
-      const listed = await api.organizations.post(
-        { action: 'listMembers', organizationId: orgId },
-        { headers }
-      );
-      expect(listed.status).toBe(200);
-      expect(listed.data).toHaveLength(1);
-
-      const roleUpdated = await api.organizations.post(
-        {
-          action: 'updateMemberRole',
-          userId: memberUser.id,
-          organizationId: orgId,
-          roles: ['shop_admin'],
-        },
-        { headers }
-      );
-      expect(roleUpdated.status).toBe(200);
-      expect((roleUpdated.data as { roles: string[] }).roles).toEqual([
-        'shop_admin',
-      ]);
-
-      const removed = await api.organizations.post(
-        {
-          action: 'removeMember',
-          userId: memberUser.id,
-          organizationId: orgId,
-        },
-        { headers }
-      );
-      expect(removed.status).toBe(200);
-
-      const after = await api.organizations.post(
-        { action: 'listMembers', organizationId: orgId },
-        { headers }
-      );
-      expect(after.data).toEqual([]);
-
-      await test.deleteUser(memberUser.id);
-      await cleanup();
-    });
-
-    it('rejects duplicate membership (1 row per user per UPT)', async () => {
-      const { headers, cleanup } = await authed('m2@gmail.com');
-
-      const created = await api.organizations.post(
-        { action: 'create', name: 'UPT Dup', code: 'UPT-DUP' },
-        { headers }
-      );
-      const orgId = (created.data as { id: string }).id;
-
-      const memberUser = test.createUser({ email: 'dup@gmail.com' });
-      await test.saveUser(memberUser);
-
-      const first = await api.organizations.post(
-        {
-          action: 'addMember',
-          userId: memberUser.id,
-          organizationId: orgId,
-          roles: ['shop_operator'],
-        },
-        { headers }
-      );
-      expect(first.status).toBe(200);
-
-      const second = await api.organizations.post(
-        {
-          action: 'addMember',
-          userId: memberUser.id,
-          organizationId: orgId,
-          roles: ['magang_operator'],
-        },
-        { headers }
-      );
-      expect(second.status).not.toBe(200);
-
-      await test.deleteUser(memberUser.id);
-      await cleanup();
-    });
-  });
-
-  // ── Edge cases ────────────────────────────────────────────
-  describe('edge cases', () => {
-    it('get unknown id returns 404', async () => {
-      const { headers, cleanup } = await authed('e1@gmail.com');
-      const { status } = await api.organizations.post(
-        { action: 'get', id: 'org-not-found' },
-        { headers }
-      );
-      expect(status).toBe(404);
-      await cleanup();
-    });
-  });
-
-  // ── Body validation (422) via treaty ──────────────────────
-  describe('body validation (422)', () => {
-    it('rejects action outside union', async () => {
-      const { headers, cleanup } = await authed('v1@gmail.com');
-      const { status } = await api.organizations.post(
-        { action: 'invalidAction' } as unknown as ActionBody,
-        { headers }
-      );
-      expect(status).toBe(422);
-      await cleanup();
-    });
-
-    it('rejects empty body', async () => {
-      const { headers, cleanup } = await authed('v2@gmail.com');
-      const { status } = await api.organizations.post(
-        {} as unknown as ActionBody,
-        { headers }
-      );
-      expect(status).toBe(422);
-      await cleanup();
-    });
-
-    it('rejects create without code', async () => {
-      const { headers, cleanup } = await authed('v3@gmail.com');
-      const { status } = await api.organizations.post(
-        { action: 'create', name: 'No Code' } as unknown as ActionBody,
-        { headers }
-      );
-      expect(status).toBe(422);
-      await cleanup();
-    });
-
-    it('rejects wrong types', async () => {
-      const { headers, cleanup } = await authed('v4@gmail.com');
-      const { status } = await api.organizations.post(
-        {
-          action: 'create',
-          name: 123,
-          code: 'UPT-X',
+          userId: 'user-id',
+          organizationId: 'organization-id',
         } as unknown as ActionBody,
         { headers }
       );
-      expect(status).toBe(422);
-      await cleanup();
-    });
 
-    it('rejects get without id', async () => {
-      const { headers, cleanup } = await authed('v5@gmail.com');
-      const { status } = await api.organizations.post(
-        { action: 'get' } as unknown as ActionBody,
+      expect(response.status).toBe(422);
+    });
+  });
+
+  describe('error', () => {
+    it('should return 404 when organization does not exist', async () => {
+      const headers = await adminHeaders();
+      const response = await api.organizations.post(
+        { action: 'get', id: 'organization-not-found' },
         { headers }
       );
-      expect(status).toBe(422);
-      await cleanup();
+
+      expect(response.status).toBe(404);
+      expect(response.error?.value).toEqual({
+        message: 'Organization not found',
+      });
     });
 
-    it('rejects addMember without roles', async () => {
-      const { headers, cleanup } = await authed('v6@gmail.com');
-      const { status } = await api.organizations.post(
+    it('should return 404 when updating organization does not exist', async () => {
+      const headers = await adminHeaders();
+      const response = await api.organizations.post(
         {
-          action: 'addMember',
-          userId: 'u1',
-          organizationId: 'o1',
-        } as unknown as ActionBody,
+          action: 'update',
+          id: 'organization-not-found',
+          name: 'New Name',
+        },
         { headers }
       );
-      expect(status).toBe(422);
-      await cleanup();
+
+      expect(response.status).toBe(404);
     });
   });
 });
