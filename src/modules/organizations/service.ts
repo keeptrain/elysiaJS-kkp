@@ -10,6 +10,13 @@ import type {
   UpdateMemberBody,
 } from './model';
 
+export type AddMemberResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: 'USER_NOT_FOUND' | 'MEMBER_ALREADY_EXISTS';
+    };
+
 export const organizationService = {
   async listMembers(
     organizations: { organizationId: string; userId: string },
@@ -51,20 +58,20 @@ export const organizationService = {
   async addMember(
     userModule: UserContract,
     organizationId: string,
-    memberOptions: Exclude<AddMemberBody, 'email'>
-  ) {
+    memberOptions: AddMemberBody
+  ): Promise<AddMemberResult> {
     const userId = await userModule.getUserIdByEmail(memberOptions.email);
     if (!userId) {
-      throw new Error('USER_NOT_FOUND');
+      return { ok: false, code: 'USER_NOT_FOUND' };
     }
 
     if (await organizationService.isMemberExist(userId)) {
-      throw new Error('MEMBER_ALREADY_EXISTS');
+      return { ok: false, code: 'MEMBER_ALREADY_EXISTS' };
     }
 
     const { position, roles } = memberOptions;
 
-    const add = await db.transaction(async () => {
+    await db.transaction(async () => {
       await db.insert(userOrganizations).values({
         id: randomUUIDv7(),
         organizationId,
@@ -79,7 +86,7 @@ export const organizationService = {
         },
       });
     });
-    return add;
+    return { ok: true };
   },
   async isMemberExist(userId: string) {
     const [member] = await db
@@ -110,19 +117,23 @@ export const organizationService = {
       )
       .returning();
 
-    await invalidateMemberCache(userId);
+    if (updated) await invalidateMemberCache(userId);
     return updated ?? null;
   },
   async removeMember(userId: string, organizationId: string) {
-    await db
+    const [removed] = await db
       .delete(userOrganizations)
       .where(
         and(
           eq(userOrganizations.userId, userId),
           eq(userOrganizations.organizationId, organizationId)
         )
-      );
+      )
+      .returning({ id: userOrganizations.id });
+
+    if (!removed) return false;
+
     await invalidateMemberCache(userId);
-    return { success: true };
+    return true;
   },
 };

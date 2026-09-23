@@ -1,4 +1,4 @@
-import Elysia from 'elysia';
+import Elysia, { status } from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 import { userModule } from '../users';
@@ -31,6 +31,7 @@ export const organizationRoutes = new Elysia({
       authorize: {
         kinds: ['organization'],
         positions: ['head'],
+        roles: ['shop_admin'],
       },
     }
   )
@@ -38,7 +39,20 @@ export const organizationRoutes = new Elysia({
     'my/add',
     async ({ body, organization }) => {
       const organizationId = (organization as { id: string }).id;
-      await organizationService.addMember(userModule, organizationId, body);
+      const result = await organizationService.addMember(
+        userModule,
+        organizationId,
+        body
+      );
+      if (!result.ok) {
+        if (result.code === 'USER_NOT_FOUND') {
+          return status(404, { message: 'User not found' });
+        }
+
+        return status(409, { message: 'Member already exists' });
+      }
+
+      return status(200, { success: true });
     },
     {
       body: AddMemberBody,
@@ -46,6 +60,7 @@ export const organizationRoutes = new Elysia({
       authorize: {
         kinds: ['organization'],
         positions: ['head'],
+        roles: ['shop_admin'],
       },
     }
   )
@@ -58,9 +73,9 @@ export const organizationRoutes = new Elysia({
         organizationId,
         body
       );
-      return result
-        ? { success: true, data: result }
-        : { success: false, message: 'Member not found' };
+      if (!result) return status(404, { message: 'Member not found' });
+
+      return { success: true, data: result };
     },
     {
       body: UpdateMemberBody,
@@ -68,6 +83,7 @@ export const organizationRoutes = new Elysia({
       authorize: {
         kinds: ['organization'],
         positions: ['head'],
+        roles: ['shop_admin'],
       },
     }
   )
@@ -75,7 +91,12 @@ export const organizationRoutes = new Elysia({
     'my/:memberId',
     async ({ params, organization }) => {
       const organizationId = (organization as { id: string }).id;
-      await organizationService.removeMember(params.memberId, organizationId);
+      const removed = await organizationService.removeMember(
+        params.memberId,
+        organizationId
+      );
+      if (!removed) return status(404, { message: 'Member not found' });
+
       return { success: true };
     },
     {
@@ -83,6 +104,7 @@ export const organizationRoutes = new Elysia({
       authorize: {
         kinds: ['organization'],
         positions: ['head'],
+        roles: ['shop_admin'],
       },
     }
   );

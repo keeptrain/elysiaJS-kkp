@@ -1,6 +1,6 @@
 ## Rules
 
-- please don't return so many text,response when result task or asking
+- please don't return so many text, response when result task or asking
 
 ## Project Architecture
 
@@ -8,7 +8,7 @@
 
 ### Architecture Rules
 
-- When other modules need to use a other module's make a request to that module's route, not directly call the service. This is to keep the module independent and maintainable. And the module can be easily to separate to microservice in the future if needed.
+- When other modules need to use a other module's make a  `ModuleContract` to that module, not directly call the service or route. This is to keep the module independent and maintainable. And the module can be easily to separate to microservice in the future if needed.
 
 ## Tech Stack
 
@@ -46,10 +46,6 @@
 - `src/modules/<module-name>/schema.ts` (typebox schema)
 - `src/modules/<module-name>/service.ts` (business logic, db query)
 
-#### Pattern usage
-
-- `src/modules/<module-name>/service` (route actions)
-
 ## Test
 
 - Location `modules/<modul>/_test/*.test.ts`. 
@@ -64,6 +60,10 @@
     const ctx = await auth.$context;
     test = ctx.test;
   });` sesudah describe awal
+  - beforeEach, selalu gunakan `await reset(db, { ...users, lalu schema/table related yang lagi diuji jangan reset semuanya.
+- Tidak perlu:
+  - 401 Unauthenticated already covered by `auth-middleware.test.ts`, no need to repeat in each module. 
+  - 403 Unauthorized already covered by `auth-middleware.test.ts`, no need to repeat in each module.
 
 ### Test Structure
 
@@ -76,31 +76,22 @@
       - (if exist) it('should return correct response with path params', async () => { ... })
       - describe(`VALIDATION absolute/route/name`)
         - (if exists) it(`should [descriptive test] `, () => { ... })
-  - describe('authorization', () => { ... })
-    - 401 Unauthenticated already covered by `auth-middleware.test.ts`, no need to repeat in each module. 
-    - 403 Unauthorized already covered by `auth-middleware.test.ts`, no need to repeat in each module.
 
-## Env & Commands
+## Code Generating
 
-- Jalankan dev: `bun run --watch src/index.ts` (atau script `bun run dev`); DB via `.docker/` (lihat bawah).
-- Env wajib: `DATABASE_URL`, `APP_URL`, `APP_PORT`, `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`. File: `.env` (prod), `.env.development`, `.env.staging`, `.env.test` (bun test me-load otomatis).
-- DB: `bun run db:generate` / `db:migrate` / `db:push` (butuh `DATABASE_URL`).
-- Typecheck: `bunx tsc -p tsconfig.json` RUSAK (error pra-ada `moduleResolution=node10` dihapus TS baru) — pakai `bunx tsc --ignoreConfig --noEmit --strict --skipLibCheck --module esnext --target es2021 --moduleResolution bundler --types bun-types <files>`; `bun build` hanya bundling, bukan typecheck.
+### Baca ini ketika melakukan generating code untuk `modules/<module-name>/index.ts
+- Tempat ini digunakan untuk yang berkaitan dengan controller pattern , seperti:
+Validasi params, body, query params, dll yang schemanya di simpan di `modules/<module-name>/model.ts`
+- Mendefinisikan plugins yang dibutuhkan seperti auth `use(betterAuth)` , `use(authorizationMiddleware)` untuk router dengan akses tertentu
 
-## Gotchas
+### Baca ini ketika melakukan generating code untuk `modules/<module-name>/service.ts
+- Tempat ini digunakan untuk yang berkaitan untuk logic bisnis manipulasi hasil return agar handler menerima final result
+- Main kode buat sebagai const `<module-name>Service` dengan isi object 
+ -  function `descriptiveNameRelated` 
+- Lakukan db.select selective mungkin agar performa oke 
+- Buat se-reusable mungkin misal masih related service bukan antar module, buat dulu function tersendiri untuk ambil/cek database tersebut
 
-- `FRONTEND_URL` (`.env.*`, tanpa underscore) vs `FRONT_END_URL` (`src/utils/env.ts`, pakai underscore) — mismatch, sehingga `CORS_ORIGIN_ALLOWED` jatuh ke fallback `localhost:3000`. `trustedOrigins` di `auth.ts` memakai `FRONTEND_URL` yang benar.
-- `LOCAL_DB` / `TURSO_*` di `.env.*` dan komentar "SQLite/Turso" sudah basi — kode aktual hanya pakai Postgres (`pg-db.ts`); tidak ada kode yang membaca key tersebut.
+## After Code Generating
 
-## Containers (.docker/)
-
-- Single multi-stage `Dockerfile`: `dev` (full deps + `--watch`) vs `prod` (`bun build --compile` → single binary on `gcr.io/distroless/base`).
-- Base `compose.yaml` is never run directly; always combine with one overlay:
-  - dev (app di host, db di container): `podman compose -f .docker/compose.yaml -f .docker/compose.dev.yaml up -d db` lalu `bun run --watch src/index.ts`
-  - staging (app+db bareng, mirip prod): `podman compose -f .docker/compose.yaml -f .docker/compose.staging.yaml up --build -d`
-  - prod (app+db bareng): `podman compose -f .docker/compose.yaml -f .docker/compose.prod.yaml up --build -d`
-- Dev overlay: hanya service `db`, env dari `../.env.development`, postgres `kkp_dev` di host `:5433`, volume `pgdata_dev`. App host konek via `DATABASE_URL` (`localhost:5433`). Jangan `up` service `app` di dev (bentrok port 3000 host).
-- Staging overlay: `target: prod`, `restart: unless-stopped`, env dari `../.env.staging`, postgres `kkp_staging` (host port commented out), volume `pgdata_staging`, app di host `:3001`. `NODE_ENV=staging` berperilaku seperti dev di kode; set `production` bila ingin persis prod.
-- Prod overlay: `target: prod`, no source mounts (immutable build), `restart: unless-stopped`, env dari `../.env`, postgres `kkp` (host port commented out), volume `pgdata_prod`.
-- `app` waits for `db` via `depends_on: service_healthy` (`pg_isready`).
-- NOTE: auth via Better Auth (`src/lib/auth.ts`, drizzleAdapter `pg`, plugin emailOTP Gmail-only + Google OAuth, handler di `/api/auth/*` + CORS; Gmail-only ditegakkan di `betterAuthView` di `src/index.ts`). Tabel auth (`users`+`sessions`+`accounts`+`verifications`) di postgres via `DATABASE_URL`, skema di `src/db/auth-schema.ts` (relasi drizzle v1 dihapus — gunakan `defineRelations` bila butuh joins). `bun test` me-load `.env.test` (`NODE_ENV=test`, rate-limit dimatikan); jangan arahkan ke db prod/staging karena test menghapus isi tabel auth.
+- Buat test dengan menghandle cases yang ada di route, service tersebut , lihat kembali ## Test
+- Always `bunx tsc --noEmit`, jangan sampai ada error di tsc.

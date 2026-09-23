@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
 import { randomUUIDv7 } from 'bun';
 import { reset } from 'drizzle-seed';
@@ -13,8 +13,12 @@ import { createMembers, createOrganization } from './utils';
 describe('Organization Service', () => {
   let test: TestHelpers;
 
+  beforeAll(async () => {
+    const ctx = await auth.$context;
+    test = ctx.test;
+  });
+
   beforeEach(async () => {
-    test = (await auth.$context).test;
     await cleanAuthDb();
     await reset(db, { organizations, userOrganizations });
   });
@@ -62,12 +66,30 @@ describe('Organization Service', () => {
       expect(result).toEqual({ items: [], nextCursor: null });
     });
 
+    it('returns null nextCursor when items exactly match the limit', async () => {
+      const { organizationId, members } = await createMembers(test, 3);
+
+      const result = await organizationService.listMembers(
+        { organizationId, userId: members[0].user.id },
+        { limit: 3 }
+      );
+
+      expect(result.items).toHaveLength(3);
+      expect(result.nextCursor).toBeNull();
+    });
+
     it('returns a member detail by user id', async () => {
       const { members } = await createMembers(test, 1);
 
       expect(
         organizationService.detailMember(members[0].user.id)
       ).resolves.toEqual(members[0].member);
+    });
+
+    it('returns null when member does not exist', async () => {
+      expect(
+        organizationService.detailMember(randomUUIDv7())
+      ).resolves.toBeNull();
     });
   });
 
@@ -77,40 +99,54 @@ describe('Organization Service', () => {
       const newUser = test.createUser({ email: 'new@test.com' });
       await test.saveUser(newUser);
 
-      await organizationService.addMember(userServices, organizationId, {
-        email: newUser.email,
-        position: 'staff',
-        roles: ['shop_operator'],
-      });
+      const result = await organizationService.addMember(
+        userServices,
+        organizationId,
+        {
+          email: newUser.email,
+          position: 'staff',
+          roles: ['shop_operator'],
+        }
+      );
+
+      expect(result).toEqual({ ok: true });
 
       const member = await organizationService.detailMember(newUser.id);
       expect(member).not.toBeNull();
-      expect(member!.position).toBe('staff');
-      expect(member!.roles).toEqual(['shop_operator']);
+      expect(member?.position).toBe('staff');
+      expect(member?.roles).toEqual(['shop_operator']);
     });
 
-    it('should throw USER_NOT_FOUND when email does not exist', async () => {
+    it('should return USER_NOT_FOUND when email does not exist', async () => {
       const { id: organizationId } = await createOrganization('Test Org');
 
-      expect(
-        organizationService.addMember(userServices, organizationId, {
+      const result = await organizationService.addMember(
+        userServices,
+        organizationId,
+        {
           email: 'nonexistent@test.com',
           position: 'staff',
           roles: ['shop_operator'],
-        })
-      ).rejects.toThrow('USER_NOT_FOUND');
+        }
+      );
+
+      expect(result).toEqual({ ok: false, code: 'USER_NOT_FOUND' });
     });
 
-    it('should throw MEMBER_ALREADY_EXISTS when user is already a member', async () => {
+    it('should return MEMBER_ALREADY_EXISTS when user is already a member', async () => {
       const { organizationId, members } = await createMembers(test, 1);
 
-      expect(
-        organizationService.addMember(userServices, organizationId, {
+      const result = await organizationService.addMember(
+        userServices,
+        organizationId,
+        {
           email: members[0].user.email,
           position: 'head',
           roles: ['shop_admin'],
-        })
-      ).rejects.toThrow('MEMBER_ALREADY_EXISTS');
+        }
+      );
+
+      expect(result).toEqual({ ok: false, code: 'MEMBER_ALREADY_EXISTS' });
     });
   });
 
@@ -125,8 +161,8 @@ describe('Organization Service', () => {
         { position: 'head', roles: ['shop_admin'] }
       );
       expect(result).not.toBeNull();
-      expect(result!.position).toBe('head');
-      expect(result!.roles).toEqual(['shop_admin']);
+      expect(result?.position).toBe('head');
+      expect(result?.roles).toEqual(['shop_admin']);
     });
 
     it('should return null when updating non-existent member', async () => {
@@ -139,6 +175,23 @@ describe('Organization Service', () => {
       );
       expect(result).toBeNull();
     });
+
+    it('should return null when member belongs to another organization', async () => {
+      const firstOrganization = await createMembers(test, 1);
+      const secondOrganization = await createMembers(test, 1);
+      const member = secondOrganization.members[0];
+
+      const result = await organizationService.updateMember(
+        member.user.id,
+        firstOrganization.organizationId,
+        { position: 'staff' }
+      );
+
+      expect(result).toBeNull();
+      expect(await organizationService.detailMember(member.user.id)).toEqual(
+        member.member
+      );
+    });
   });
 
   describe('removeMember', () => {
@@ -146,9 +199,39 @@ describe('Organization Service', () => {
       const { organizationId, members } = await createMembers(test, 1);
       const userId = members[0].user.id;
 
-      const result = await organizationService.removeMember(userId, organizationId);
-      expect(result).toEqual({ success: true });
+      const result = await organizationService.removeMember(
+        userId,
+        organizationId
+      );
+      expect(result).toBe(true);
       expect(await organizationService.isMemberExist(userId)).toBe(false);
+    });
+
+    it('should return false when member does not exist', async () => {
+      const { id: organizationId } = await createOrganization('Test Org');
+
+      const result = await organizationService.removeMember(
+        randomUUIDv7(),
+        organizationId
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when member belongs to another organization', async () => {
+      const firstOrganization = await createMembers(test, 1);
+      const secondOrganization = await createMembers(test, 1);
+      const member = secondOrganization.members[0];
+
+      const result = await organizationService.removeMember(
+        member.user.id,
+        firstOrganization.organizationId
+      );
+
+      expect(result).toBe(false);
+      expect(await organizationService.isMemberExist(member.user.id)).toBe(
+        true
+      );
     });
   });
 

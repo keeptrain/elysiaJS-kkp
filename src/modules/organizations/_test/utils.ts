@@ -1,24 +1,19 @@
 import type { TestHelpers } from 'better-auth/plugins';
 import { randomUUIDv7 } from 'bun';
-import { seed } from 'drizzle-seed';
 import { organizations, userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import { createUser } from '@/modules/auth/_test/utils';
 
 export async function createOrganization(name = 'Test Organization') {
-  await seed(db, { organizations }, { count: 1 }).refine((funcs) => ({
-    organizations: {
-      columns: {
-        name: funcs.valuesFromArray({ values: [name] }),
-        code: funcs.valuesFromArray({
-          values: [`ORG-${randomUUIDv7()}`],
-          isUnique: true,
-        }),
-      },
-    },
-  }));
+  const [organization] = await db
+    .insert(organizations)
+    .values({
+      id: randomUUIDv7(),
+      name,
+      code: `ORG-${randomUUIDv7()}`,
+    })
+    .returning();
 
-  const [organization] = await db.select().from(organizations);
   return organization;
 }
 

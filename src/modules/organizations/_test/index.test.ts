@@ -20,7 +20,11 @@ describe('organizations <integrations/services>', () => {
   });
 
   beforeEach(async () => {
-    await reset(db, { ...auths, organizations, userOrganizations });
+    await reset(db, {
+      ...auths,
+      organizations,
+      userOrganizations,
+    });
   });
 
   describe('GET my', () => {
@@ -130,6 +134,7 @@ describe('organizations <integrations/services>', () => {
         { headers }
       );
       expect(response.status).toBe(200);
+      expect(response.data).toEqual({ success: true });
     });
 
     describe('VALIDATION my/add', () => {
@@ -158,6 +163,39 @@ describe('organizations <integrations/services>', () => {
           { headers }
         );
         expect(response.status).toBe(422);
+      });
+    });
+
+    describe('ERROR my/add', () => {
+      it('should return user not found when email does not exist', async () => {
+        const { members } = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await api.organizations.my.add.post(
+          { email: 'notfound@test.com', position: 'staff' },
+          { headers }
+        );
+        expect(response.status).toBe(404);
+        expect(response.error?.value).toEqual({ message: 'User not found' });
+      });
+
+      it('should return member already exists when user is already a member', async () => {
+        const { members } = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await api.organizations.my.add.post(
+          { email: members[0].user.email, position: 'staff' },
+          { headers }
+        );
+
+        expect(response.status).toBe(409);
+        expect(response.error?.value).toEqual({
+          message: 'Member already exists',
+        });
       });
     });
   });
@@ -196,6 +234,42 @@ describe('organizations <integrations/services>', () => {
         expect(response.status).toBe(422);
       });
     });
+
+    describe('ERROR my/:memberId', () => {
+      it('should return 404 when member does not exist', async () => {
+        const { members } = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const missingMember = crypto.randomUUID();
+        const response = await api.organizations
+          .my({ memberId: missingMember })
+          .patch({ position: 'staff' }, { headers });
+
+        expect(response.status).toBe(404);
+        expect(response.error?.value).toEqual({
+          message: 'Member not found',
+        });
+      });
+
+      it('should return 404 when member belongs to another organization', async () => {
+        const firstOrganization = await createMembers(test, 1);
+        const secondOrganization = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: firstOrganization.members[0].user.id,
+        });
+
+        const response = await api.organizations
+          .my({ memberId: secondOrganization.members[0].user.id })
+          .patch({ position: 'staff' }, { headers });
+
+        expect(response.status).toBe(404);
+        expect(response.error?.value).toEqual({
+          message: 'Member not found',
+        });
+      });
+    });
   });
 
   describe('DELETE my/:memberId', () => {
@@ -212,6 +286,41 @@ describe('organizations <integrations/services>', () => {
         .delete({}, { headers });
       expect(response.status).toBe(200);
       expect(response.data).toEqual({ success: true });
+    });
+
+    describe('ERROR my/:memberId', () => {
+      it('should return 404 when member does not exist', async () => {
+        const { members } = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: members[0].user.id,
+        });
+
+        const response = await api.organizations
+          .my({ memberId: crypto.randomUUID() })
+          .delete({}, { headers });
+
+        expect(response.status).toBe(404);
+        expect(response.error?.value).toEqual({
+          message: 'Member not found',
+        });
+      });
+
+      it('should return 404 when member belongs to another organization', async () => {
+        const firstOrganization = await createMembers(test, 1);
+        const secondOrganization = await createMembers(test, 1);
+        const { headers } = await test.login({
+          userId: firstOrganization.members[0].user.id,
+        });
+
+        const response = await api.organizations
+          .my({ memberId: secondOrganization.members[0].user.id })
+          .delete({}, { headers });
+
+        expect(response.status).toBe(404);
+        expect(response.error?.value).toEqual({
+          message: 'Member not found',
+        });
+      });
     });
   });
 });

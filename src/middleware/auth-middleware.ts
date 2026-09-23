@@ -17,7 +17,6 @@ export const betterAuth = new Elysia({
 }).macro({
   auth: {
     async resolve({ status, request: { headers } }) {
-      // Base getSession dari better-auth, tapi kita cast ke SessionWithOrg.
       const session = (await auth.api.getSession({
         headers,
       })) as unknown as SessionWithOrg | null;
@@ -32,3 +31,5 @@ export const betterAuth = new Elysia({
     },
   },
 });
+
+export const authMiddleware = betterAuth;

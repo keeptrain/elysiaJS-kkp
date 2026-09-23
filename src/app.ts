@@ -18,6 +18,20 @@ const protectedRoutes = new Elysia()
   .use(organizationRoutes);
 
 export const app = new Elysia({ prefix: '/api' })
+  .onError(({ code, set }) => {
+    if (code === 'VALIDATION') {
+      set.status = 422;
+      return { message: 'Invalid request' };
+    }
+
+    if (code === 'NOT_FOUND') {
+      set.status = 404;
+      return { message: 'Route not found' };
+    }
+
+    set.status = 500;
+    return { message: 'Internal server error' };
+  })
   .use(corsPlugin)
   // .use(ipRateLimiterMiddleware)
   .use(openapiPlugin)

@@ -1,13 +1,13 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
-import { Elysia } from 'elysia';
 import { randomUUIDv7 } from 'bun';
 import { eq } from 'drizzle-orm';
-import { db } from '@/lib/pg-db';
-import { auth } from '@/lib/auth';
+import { Elysia } from 'elysia';
 import { sessions, users } from '@/db/auth-schema';
 import { organizations, userOrganizations } from '@/db/schema';
 import { app } from '@/index';
+import { auth } from '@/lib/auth';
+import { db } from '@/lib/pg-db';
 import { authMiddleware } from '@/middleware/auth-middleware';
 import { authedHeaders, cleanAuthDb, withJson } from './utils';
 
@@ -127,7 +127,7 @@ describe('session lifecycle', () => {
       });
 
       const after = (await auth.api.getSession({ headers })) as unknown as {
-        organization: { id: string; roles: string[] };
+        organization: { id: string; position: string; roles: string[] };
       };
       expect(after.organization).toEqual({
         id: org.id,
@@ -332,7 +332,7 @@ describe('protected route', () => {
   it('responds 200 with a valid session', async () => {
     const route = new Elysia()
       .use(authMiddleware)
-      .get('/protected', ({ userId }) => userId);
+      .get('/protected', () => 'ok');
 
     const headers = await authedHeaders(test, 'guard@gmail.com');
     const authed = await route.handle(
@@ -344,7 +344,7 @@ describe('protected route', () => {
   it('responds 401 without a session', async () => {
     const route = new Elysia()
       .use(authMiddleware)
-      .get('/protected', ({ userId }) => userId);
+      .get('/protected', () => 'ok');
 
     const anon = await route.handle(new Request(`${base}/protected`));
     expect(anon.status).toBe(401);
