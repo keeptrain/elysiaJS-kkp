@@ -30,7 +30,8 @@ export async function adminHeaders(
   email?: string
 ): Promise<Headers> {
   const user = await createAdminUser(test, email);
-  return test.getAuthHeaders({ userId: user.id });
+  const { headers } = await test.login({ userId: user.id });
+  return headers;
 }
 
 export async function authedHeaders(
@@ -38,8 +39,9 @@ export async function authedHeaders(
   email?: string | undefined
 ): Promise<Headers> {
   const user = test.createUser({ email });
-  await test.saveUser(user); // save to table on db
-  return test.getAuthHeaders({ userId: user.id });
+  await test.saveUser(user);
+  const { headers } = await test.login({ userId: user.id });
+  return headers;
 }
 
 export function withJson(headers: Headers): Headers {

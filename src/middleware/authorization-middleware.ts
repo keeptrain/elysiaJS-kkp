@@ -3,21 +3,11 @@ import {
   MAGANG_ROLES,
   MARKETPLACE_ROLES,
   ORGANIZATION_POSITIONS,
-  OrganizationPosition,
+  type OrganizationPosition,
   ROLES,
 } from '@/constants/access-control';
+import { auth } from '@/lib/auth';
 import type { SessionWithOrg } from './auth-middleware';
-
-const chainedSession = {
-  decorator: {},
-  store: {},
-  derive: {},
-  resolve: {
-    session: {} as SessionWithOrg['session'],
-    user: {} as SessionWithOrg['user'],
-    organization: {} as SessionWithOrg['organization'],
-  },
-} as const;
 
 const orgRequirementSchema = t.Object({
   kinds: t.Optional(
@@ -46,18 +36,23 @@ const orgRequirementSchema = t.Object({
 
 export type AuthorizationRequirement = Static<typeof orgRequirementSchema>;
 
-export const authorizationMiddleware = new Elysia<'', typeof chainedSession>({
+export const authorizationMiddleware = new Elysia({
   name: 'authorization.middleware',
 }).macro({
   authorize: (requirement: AuthorizationRequirement) => ({
-    resolve: ({ session, user, organization }) => {
+    resolve: async ({ request, status }) => {
+      const headers = request.headers;
+      const session = (await auth.api.getSession({
+        headers,
+      })) as unknown as SessionWithOrg | null;
+
       if (!session) {
         return status(401, 'Unauthorized: Invalid or expired session');
       }
 
       if (requirement.kinds) {
-        const isAdmin = user.metadata?.kind === 'admin';
-        const isOrganization = organization !== null;
+        const isAdmin = session.user.metadata?.kind === 'admin';
+        const isOrganization = session.organization !== null;
         const matchesKind =
           (isAdmin && requirement.kinds.includes('admin')) ||
           (isOrganization && requirement.kinds.includes('organization'));
@@ -74,7 +69,7 @@ export const authorizationMiddleware = new Elysia<'', typeof chainedSession>({
         requirement.positions !== undefined || requirement.roles !== undefined;
       if (!requiresOrganization) return {};
 
-      const org = organization;
+      const org = session.organization;
       if (!org) return status(403, 'Forbidden: no organization membership');
 
       if (
