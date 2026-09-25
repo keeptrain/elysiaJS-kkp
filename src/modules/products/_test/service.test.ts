@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import { reset } from 'drizzle-seed';
@@ -375,6 +375,27 @@ describe('products <services test>', () => {
         const result = await productsService.listProducts({});
 
         expect(result).toEqual({ items: [], nextCursor: null });
+      });
+
+      it('should still return products from db when redis is unavailable', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+
+        const getSpy = spyOn(redis, 'get').mockRejectedValue(
+          new Error('redis down')
+        );
+        const setSpy = spyOn(redis, 'set').mockRejectedValue(
+          new Error('redis down')
+        );
+        try {
+          const result = await productsService.listProducts({});
+
+          expect(result.items).toHaveLength(1);
+          expect(result.items[0]?.name).toBe('Benih Ikan Nila');
+        } finally {
+          getSpy.mockRestore();
+          setSpy.mockRestore();
+        }
       });
     });
   });

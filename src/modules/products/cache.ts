@@ -70,6 +70,38 @@ export function buildProductListFromCached(cached: string) {
   };
 }
 
+export async function readListCache(
+  query: ListProductsQuery
+): Promise<string | null> {
+  try {
+    const version = (await redis.get(listVersionKey)) ?? '1';
+    return await redis.get(getProductListKey(version, query));
+  } catch {
+    return null;
+  }
+}
+
+export async function writeListCache(
+  query: ListProductsQuery,
+  value: unknown
+): Promise<void> {
+  try {
+    const version = (await redis.get(listVersionKey)) ?? '1';
+    await redis.set(
+      getProductListKey(version, query),
+      JSON.stringify(value),
+      'EX',
+      LIST_TTL
+    );
+  } catch {
+    // best-effort
+  }
+}
+
 export async function invalidateProductListCache(): Promise<void> {
-  await redis.incr(listVersionKey);
+  try {
+    await redis.incr(listVersionKey);
+  } catch {
+    // best-effort
+  }
 }

@@ -32,9 +32,7 @@ export type UpdateProductResult =
 
 export const productsService = {
   async listProducts(query: ListProductsQuery) {
-    const version = (await redis.get(ProductCache.listVersionKey)) ?? '1';
-    const cacheKey = ProductCache.getProductListKey(version, query);
-    const cached = await redis.get(cacheKey);
+    const cached = await ProductCache.readListCache(query);
     if (cached) {
       return ProductCache.buildProductListFromCached(cached);
     }
@@ -73,12 +71,7 @@ export const productsService = {
     const nextCursor = hasNextPage ? items[items.length - 1].id : null;
 
     const result = { items, nextCursor };
-    await redis.set(
-      cacheKey,
-      JSON.stringify(result),
-      'EX',
-      ProductCache.LIST_TTL
-    );
+    await ProductCache.writeListCache(query, result);
     return result;
   },
   async getProductBySlug(
