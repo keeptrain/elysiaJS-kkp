@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, isNull, ne } from 'drizzle-orm';
 import { products } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import type { OrganizationContract } from '../organizations';
@@ -46,6 +46,10 @@ export const productsService = {
       conditions.push(eq(products.organizationId, query.organizationId));
     }
     if (query.cursor) conditions.push(gt(products.id, query.cursor));
+    if (query.q) {
+      const pattern = `%${query.q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+      conditions.push(ilike(products.name, pattern));
+    }
 
     const data = await db
       .select({

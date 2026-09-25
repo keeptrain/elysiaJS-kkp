@@ -76,7 +76,8 @@ export function getProductListKey(
   const organizationId = query.organizationId ?? 'all';
   const cursor = query.cursor ?? 'start';
   const limit = query.limit ?? 10;
-  return `${LIST_PREFIX}:v${version}:${type}:${organizationId}:${cursor}:${limit}`;
+  const q = query.q ? query.q : 'all';
+  return `${LIST_PREFIX}:v${version}:${type}:${organizationId}:${cursor}:${limit}:${q}`;
 }
 
 export function buildProductListFromCached(cached: string) {

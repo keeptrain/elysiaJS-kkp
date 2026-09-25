@@ -396,6 +396,40 @@ describe('products <services test>', () => {
         expect(secondPage.nextCursor).toBeNull();
       });
 
+      it('should return correct response with search query', async () => {
+        const owner = await createProductOrganization(test);
+        const nila = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const result = await productsService.listProducts({ q: 'NILA' });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0].id).toBe(nila.id);
+      });
+
+      it('should return empty list when search query matches nothing', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+
+        const result = await productsService.listProducts({ q: 'lele' });
+
+        expect(result).toEqual({ items: [], nextCursor: null });
+      });
+
+      it('should cache search results under separate keys', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const nila = await productsService.listProducts({ q: 'nila' });
+        const gurame = await productsService.listProducts({ q: 'gurame' });
+
+        expect(nila.items).toHaveLength(1);
+        expect(nila.items[0]?.name).toBe('Benih Ikan Nila');
+        expect(gurame.items).toHaveLength(1);
+        expect(gurame.items[0]?.name).toBe('Bibit Ikan Gurame');
+      });
+
       it('should return an empty list when no products exist', async () => {
         const result = await productsService.listProducts({});
 

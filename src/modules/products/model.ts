@@ -43,6 +43,7 @@ export const ListProductsQuery = t.Object({
   organizationId: t.Optional(t.Numeric({ minimum: 1 })),
   cursor: t.Optional(t.String({ format: 'uuid' })),
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
+  q: t.Optional(t.String({ maxLength: 150 })),
 });
 
 export type ListProductsQuery = typeof ListProductsQuery.static;

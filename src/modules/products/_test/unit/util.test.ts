@@ -17,7 +17,7 @@ describe('unit cache.ts', () => {
   describe('getProductListKey', () => {
     it('should generate key with default values when query params are undefined', () => {
       const key = getProductListKey('1', {});
-      expect(key).toBe('products:list:v1:all:all:start:10');
+      expect(key).toBe('products:list:v1:all:all:start:10:all');
     });
 
     it('should generate key with provided query values', () => {
@@ -27,7 +27,12 @@ describe('unit cache.ts', () => {
         cursor: 'prod_123',
         limit: 20,
       });
-      expect(key).toBe('products:list:v2:benih:5:prod_123:20');
+      expect(key).toBe('products:list:v2:benih:5:prod_123:20:all');
+    });
+
+    it('should include search query in key', () => {
+      const key = getProductListKey('3', { q: 'nila' });
+      expect(key).toBe('products:list:v3:all:all:start:10:nila');
     });
   });
 

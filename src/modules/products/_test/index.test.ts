@@ -94,6 +94,20 @@ describe('products/index Controller', () => {
         expect(response.data?.items[0].status).toBe('active');
       });
 
+      it('should return correct response with search query', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const response = await api.products.get({
+          query: { q: 'nila' },
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.data?.items).toHaveLength(1);
+        expect(response.data?.items[0]?.name).toBe('Benih Ikan Nila');
+      });
+
       describe('VALIDATION GET /products', () => {
         it('should return 422 if type is invalid', async () => {
           const response = await api.products.get({
@@ -105,6 +119,13 @@ describe('products/index Controller', () => {
         it('should return 422 if cursor is not a uuid', async () => {
           const response = await api.products.get({
             query: { cursor: 'not-a-uuid' },
+          });
+          expect(response.status).toBe(422);
+        });
+
+        it('should return 422 if q is longer than 150 characters', async () => {
+          const response = await api.products.get({
+            query: { q: 'a'.repeat(151) },
           });
           expect(response.status).toBe(422);
         });
