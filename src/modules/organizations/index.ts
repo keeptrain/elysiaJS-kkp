@@ -9,6 +9,16 @@ import {
 } from './model';
 import { organizationService } from './service';
 
+export interface OrganizationContract {
+  getCodeById: (id: number) => Promise<string | null>;
+}
+
+export const organizationModule: OrganizationContract = {
+  async getCodeById(id: number) {
+    return organizationService.getCodeById(id);
+  },
+};
+
 export const organizationRoutes = new Elysia({
   prefix: '/organizations',
   detail: { tags: ['organizations'], hide: true },

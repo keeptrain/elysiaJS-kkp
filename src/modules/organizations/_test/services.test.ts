@@ -23,6 +23,20 @@ describe('Organization Service', () => {
     await reset(db, { organizations, userOrganizations });
   });
 
+  describe('getCodeById', () => {
+    it('returns the organization code by id', async () => {
+      const organization = await createOrganization('Test Org');
+
+      expect(await organizationService.getCodeById(organization.id)).toBe(
+        organization.code
+      );
+    });
+
+    it('returns null when organization does not exist', async () => {
+      expect(await organizationService.getCodeById(999999)).toBeNull();
+    });
+  });
+
   describe('list members', () => {
     it('lists members with the default limit and next cursor', async () => {
       const { organizationId, members } = await createMembers(test, 3);

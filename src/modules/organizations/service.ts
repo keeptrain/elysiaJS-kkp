@@ -1,6 +1,6 @@
 import { randomUUIDv7 } from 'bun';
 import { and, asc, eq, gt } from 'drizzle-orm';
-import { userOrganizations } from '@/db/schema';
+import { organizations, userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import { invalidateMemberCache } from '@/modules/organizations/membership';
 import type { UserContract } from '../users';
@@ -18,6 +18,14 @@ export type AddMemberResult =
     };
 
 export const organizationService = {
+  async getCodeById(id: number) {
+    const [organization] = await db
+      .select({ code: organizations.code })
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return organization?.code ?? null;
+  },
   async listMembers(
     organizations: { organizationId: number; userId: string },
     query: CursorPaginationQuery
