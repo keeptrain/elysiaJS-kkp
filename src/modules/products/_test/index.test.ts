@@ -329,6 +329,18 @@ describe('products/index Controller', () => {
           });
         });
 
+        it('should return 409 when renaming to an existing product slug', async () => {
+          const owner = await createProductMember(test);
+          await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+          const product = await seedProduct(owner, 'Benih Ikan Lele', 'benih');
+
+          const response = await api.products
+            .my({ productId: product.id })
+            .patch({ name: 'Benih Ikan Nila' }, { headers: owner.headers });
+
+          expect(response.status).toBe(409);
+        });
+
         describe('VALIDATION PATCH /products/my/:productId', () => {
           it('should return 422 when body is empty without invalidating caches', async () => {
             const owner = await createProductMember(test);

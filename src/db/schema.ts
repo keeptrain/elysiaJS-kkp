@@ -1,4 +1,3 @@
-import { randomUUIDv7 } from 'bun';
 import { sql } from 'drizzle-orm';
 import {
   check,
@@ -9,6 +8,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -54,7 +54,7 @@ export const products = pgTable(
   {
     id: uuid('id')
       .primaryKey()
-      .$defaultFn(() => randomUUIDv7()),
+      .$defaultFn(() => Bun.randomUUIDv7()),
     type: text('type').$type<'benih' | 'bibit'>().notNull(),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
@@ -118,10 +118,7 @@ export const products = pgTable(
       'products_price_commercial_non_negative',
       sql`${table.priceCommercial} >= 0`
     ),
-    // check(
-    //   'products_organizationId_slug_unique',
-    //   sql`(${table.organizationId}, ${table.slug}) IS UNIQUE`
-    // ),
+    unique('uq_products_org_slug').on(table.organizationId, table.slug),
     index('idx_products_sku').on(table.sku),
     index('idx_products_slug').on(table.slug),
     index('idx_products_org').on(table.organizationId),

@@ -236,6 +236,24 @@ describe('products <services test>', () => {
         expect(result).toEqual({ ok: false, code: 'PRODUCT_NOT_FOUND' });
       });
 
+      it('should return PRODUCT_ALREADY_EXISTS when renaming to sibling slug', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        const second = await seedProduct(owner, 'Benih Ikan Lele', 'benih');
+
+        const result = await productsService.updateProduct(
+          organizationModule,
+          owner.organization.id,
+          second.id,
+          { name: 'Benih Ikan Nila' }
+        );
+
+        expect(result).toEqual({
+          ok: false,
+          code: 'PRODUCT_ALREADY_EXISTS',
+        });
+      });
+
       it('should invalidate the detail cache on update', async () => {
         const owner = await createProductOrganization(test);
         const product = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
