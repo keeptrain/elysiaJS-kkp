@@ -1,4 +1,3 @@
-import { randomUUIDv7 } from 'bun';
 import { and, asc, eq, gt, isNull, ne } from 'drizzle-orm';
 import { products } from '@/db/schema';
 import { redis } from '@/lib/bun-redis';
@@ -153,7 +152,6 @@ export const productsService = {
     const [product] = await db
       .insert(products)
       .values({
-        id: randomUUIDv7(),
         type: input.type,
         name: input.name,
         slug,

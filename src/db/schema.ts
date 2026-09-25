@@ -1,3 +1,4 @@
+import { randomUUIDv7 } from 'bun';
 import { sql } from 'drizzle-orm';
 import {
   check,
@@ -51,7 +52,9 @@ export const userOrganizations = pgTable(
 export const products = pgTable(
   'products',
   {
-    id: uuid('id').primaryKey(),
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUIDv7()),
     type: text('type').$type<'benih' | 'bibit'>().notNull(),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
@@ -90,10 +93,10 @@ export const products = pgTable(
     deletedAt: timestamp('deleted_at'),
   },
   (table) => [
-    check(
-      'products_id_uuid_v7_check',
-      sql`substring(${table.id}::text from 15 for 1) = '7'`
-    ),
+    // check(
+    //   'products_id_uuid_v7_check',
+    //   sql`substring(${table.id}::text from 15 for 1) = '7'`
+    // ),
     check('products_type_check', sql`${table.type} in ('benih', 'bibit')`),
     check(
       'products_status_check',
@@ -115,6 +118,10 @@ export const products = pgTable(
       'products_price_commercial_non_negative',
       sql`${table.priceCommercial} >= 0`
     ),
+    // check(
+    //   'products_organizationId_slug_unique',
+    //   sql`(${table.organizationId}, ${table.slug}) IS UNIQUE`
+    // ),
     index('idx_products_sku').on(table.sku),
     index('idx_products_slug').on(table.slug),
     index('idx_products_org').on(table.organizationId),
