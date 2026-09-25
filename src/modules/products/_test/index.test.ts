@@ -223,6 +223,165 @@ describe('products/index Controller', () => {
           expect(response.status).toBe(422);
         });
       });
+      describe('PATCH /products/:productId', () => {
+        it('should update product and return the updated data', async () => {
+          const owner = await createProductMember(test);
+          const product = await seedProduct(
+            owner,
+            'Benih Ikan Nila',
+            'benih',
+            'active'
+          );
+
+          const response = await api
+            .products({ productId: product.id })
+            .patch(
+              { name: 'Benih Ikan Lele', priceCommercial: 250 },
+              { headers: owner.headers }
+            );
+
+          expect(response.status).toBe(200);
+          expect(response.data?.data.name).toBe('Benih Ikan Lele');
+          expect(response.data?.data.priceCommercial).toBe(250);
+          expect(response.data?.data.slug).toBe(
+            `${slugify(owner.organization.code)}-benih-ikan-lele`
+          );
+        });
+
+        it('should return 404 when product does not belong to the organization', async () => {
+          const member = await createProductMember(test);
+          const otherOwner = await createProductOrganization(test);
+          const product = await seedProduct(
+            otherOwner,
+            'Benih Ikan Nila',
+            'benih',
+            'active'
+          );
+
+          const response = await api
+            .products({ productId: product.id })
+            .patch({ name: 'Benih Ikan Lele' }, { headers: member.headers });
+
+          expect(response.status).toBe(404);
+          expect(response.error?.value).toEqual({
+            message: 'Product not found',
+          });
+        });
+
+        describe('VALIDATION PATCH /products/:productId', () => {
+          it('should return 422 if productId is not a uuid', async () => {
+            const { headers } = await createProductMember(test);
+
+            const response = await api
+              .products({
+                productId: 'not-a-uuid',
+              })
+              .patch({ name: 'Benih Ikan Lele' }, { headers });
+
+            expect(response.status).toBe(422);
+          });
+
+          it('should return 422 if name is too short', async () => {
+            const owner = await createProductMember(test);
+            const product = await seedProduct(
+              owner,
+              'Benih Ikan Nila',
+              'benih',
+              'active'
+            );
+
+            const response = await api
+              .products({ productId: product.id })
+              .patch({ name: 'ab' }, { headers: owner.headers });
+
+            expect(response.status).toBe(422);
+          });
+
+          it('should return 422 if name is too long', async () => {
+            const owner = await createProductMember(test);
+            const product = await seedProduct(
+              owner,
+              'Benih Ikan Nila',
+              'benih',
+              'active'
+            );
+
+            const response = await api
+              .products({ productId: product.id })
+              .patch({ name: 'a'.repeat(151) }, { headers: owner.headers });
+
+            expect(response.status).toBe(422);
+          });
+
+          it('should return 422 if type is invalid', async () => {
+            const owner = await createProductMember(test);
+            const product = await seedProduct(
+              owner,
+              'Benih Ikan Nila',
+              'benih',
+              'active'
+            );
+
+            const response = await api
+              .products({ productId: product.id })
+              .patch(
+                { type: 'udang' as unknown as 'benih' },
+                { headers: owner.headers }
+              );
+
+            expect(response.status).toBe(422);
+          });
+
+          it('should return 422 if status is invalid', async () => {
+            const owner = await createProductMember(test);
+            const product = await seedProduct(
+              owner,
+              'Benih Ikan Nila',
+              'benih',
+              'active'
+            );
+
+            const response = await api
+              .products({ productId: product.id })
+              .patch(
+                { status: 'deleted' as unknown as 'draft' },
+                { headers: owner.headers }
+              );
+
+            expect(response.status).toBe(422);
+          });
+
+          it('should return 422 if stock or price is negative', async () => {
+            const owner = await createProductMember(test);
+            const product = await seedProduct(
+              owner,
+              'Benih Ikan Nila',
+              'benih',
+              'active'
+            );
+
+            const response1 = await api
+              .products({ productId: product.id })
+              .patch({ stockAssitance: -1 }, { headers: owner.headers });
+            expect(response1.status).toBe(422);
+
+            const response2 = await api
+              .products({ productId: product.id })
+              .patch({ priceAssitance: -10 }, { headers: owner.headers });
+            expect(response2.status).toBe(422);
+
+            const response3 = await api
+              .products({ productId: product.id })
+              .patch({ stockCommercial: -5 }, { headers: owner.headers });
+            expect(response3.status).toBe(422);
+
+            const response4 = await api
+              .products({ productId: product.id })
+              .patch({ priceCommercial: -100 }, { headers: owner.headers });
+            expect(response4.status).toBe(422);
+          });
+        });
+      });
     });
   });
 });

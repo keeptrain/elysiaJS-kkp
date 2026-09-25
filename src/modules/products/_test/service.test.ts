@@ -141,6 +141,56 @@ describe('products <services test>', () => {
         expect(result).toBeNull();
       });
     });
+    describe('updateProduct', () => {
+      it('should update product and invalidate the list cache', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(
+          owner,
+          'Benih Ikan Nila',
+          'benih',
+          'active'
+        );
+        await productsService.listProducts({});
+
+        const result = await productsService.updateProduct(
+          organizationModule,
+          owner.organization.id,
+          product.id,
+          { name: 'Benih Ikan Lele', priceCommercial: 250 }
+        );
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.data.name).toBe('Benih Ikan Lele');
+        expect(result.data.priceCommercial).toBe(250);
+        expect(result.data.slug).toBe(
+          `${slugify(owner.organization.code)}-benih-ikan-lele`
+        );
+
+        const list = await productsService.listProducts({});
+        expect(list.items[0]?.name).toBe('Benih Ikan Lele');
+      });
+
+      it('should return PRODUCT_NOT_FOUND for another organization product', async () => {
+        const owner = await createProductOrganization(test);
+        const otherOwner = await createProductOrganization(test);
+        const product = await seedProduct(
+          otherOwner,
+          'Benih Ikan Nila',
+          'benih',
+          'active'
+        );
+
+        const result = await productsService.updateProduct(
+          organizationModule,
+          owner.organization.id,
+          product.id,
+          { name: 'Benih Ikan Lele' }
+        );
+
+        expect(result).toEqual({ ok: false, code: 'PRODUCT_NOT_FOUND' });
+      });
+    });
     describe('listProducts', () => {
       it('should return correct response', async () => {
         const owner = await createProductOrganization(test);
