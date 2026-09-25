@@ -22,3 +22,12 @@ export const CreateProductBody = t.Object({
 });
 
 export type CreateProductBody = typeof CreateProductBody.static;
+
+export const ListProductsQuery = t.Object({
+  type: t.Optional(t.Enum(PRODUCT_TYPES)),
+  organizationId: t.Optional(t.Numeric({ minimum: 1 })),
+  cursor: t.Optional(t.String({ format: 'uuid' })),
+  limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
+});
+
+export type ListProductsQuery = typeof ListProductsQuery.static;

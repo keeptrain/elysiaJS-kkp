@@ -9,7 +9,11 @@ import { app } from '@/index';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import { slugify } from '../utils';
-import { createProductMember } from './utils';
+import {
+  createProductMember,
+  createProductOrganization,
+  seedProduct,
+} from './utils';
 
 const api = treaty(app).api;
 
@@ -31,7 +35,77 @@ describe('products/index Controller', () => {
   });
 
   describe('success', () => {
-    describe('GET /products', () => {});
+    describe('GET /products', () => {
+      it('should return correct response', async () => {
+        const owner = await createProductOrganization(test);
+        const first = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        const second = await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const response = await api.products.get();
+
+        expect(response.status).toBe(200);
+        expect(response.data?.items.map((product) => product.id)).toEqual([
+          first.id,
+          second.id,
+        ]);
+        expect(response.data?.nextCursor).toBeNull();
+      });
+
+      it('should return correct response with query params', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const response = await api.products.get({
+          query: { type: 'bibit' },
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.data?.items).toHaveLength(1);
+        expect(response.data?.items[0].type).toBe('bibit');
+      });
+
+      it('should return correct response with next cursor when limit is less than total', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Benih Ikan Lele', 'benih');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const response = await api.products.get({ query: { limit: 2 } });
+
+        expect(response.status).toBe(200);
+        expect(response.data?.items).toHaveLength(2);
+        expect(response.data?.nextCursor).toBe(response.data?.items[1].id);
+      });
+
+      it('should exclude draft products', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih', 'active');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit', 'draft');
+
+        const response = await api.products.get();
+
+        expect(response.status).toBe(200);
+        expect(response.data?.items).toHaveLength(1);
+        expect(response.data?.items[0].status).toBe('active');
+      });
+
+      describe('VALIDATION GET /products', () => {
+        it('should return 422 if type is invalid', async () => {
+          const response = await api.products.get({
+            query: { type: 'udang' as unknown as 'benih' },
+          });
+          expect(response.status).toBe(422);
+        });
+
+        it('should return 422 if cursor is not a uuid', async () => {
+          const response = await api.products.get({
+            query: { cursor: 'not-a-uuid' },
+          });
+          expect(response.status).toBe(422);
+        });
+      });
+    });
     describe('POST /products', () => {
       it('should return correct response', async () => {
         const { organization, user, headers } = await createProductMember(test);

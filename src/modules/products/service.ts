@@ -1,9 +1,9 @@
 import { randomUUIDv7 } from 'bun';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull } from 'drizzle-orm';
 import { products } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import type { OrganizationContract } from '../organizations';
-import type { CreateProductBody } from './model';
+import type { CreateProductBody, ListProductsQuery } from './model';
 import { slugify } from './utils';
 
 export type CreateProductInput = CreateProductBody & {
@@ -16,6 +16,42 @@ export type CreateProductResult =
   | { ok: false; code: 'ORGANIZATION_NOT_FOUND' | 'PRODUCT_ALREADY_EXISTS' };
 
 export const productsService = {
+  async listProducts(query: ListProductsQuery) {
+    const limit = query.limit ?? 10;
+    const conditions = [
+      isNull(products.deletedAt),
+      eq(products.status, 'active'),
+    ];
+    if (query.type) conditions.push(eq(products.type, query.type));
+    if (query.organizationId) {
+      conditions.push(eq(products.organizationId, query.organizationId));
+    }
+    if (query.cursor) conditions.push(gt(products.id, query.cursor));
+
+    const data = await db
+      .select({
+        id: products.id,
+        type: products.type,
+        name: products.name,
+        slug: products.slug,
+        status: products.status,
+        stockAssitance: products.stockAssitance,
+        priceAssitance: products.priceAssitance,
+        stockCommercial: products.stockCommercial,
+        priceCommercial: products.priceCommercial,
+        organizationId: products.organizationId,
+      })
+      .from(products)
+      .where(and(...conditions))
+      .limit(limit + 1)
+      .orderBy(asc(products.id));
+
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, -1) : data;
+    const nextCursor = hasNextPage ? items[items.length - 1].id : null;
+
+    return { items, nextCursor };
+  },
   async createProduct(
     organizationModule: OrganizationContract,
     input: CreateProductInput

@@ -1,9 +1,8 @@
-import { randomUUIDv7 } from 'bun';
 import Elysia, { status } from 'elysia';
 import { betterAuth } from '@/middleware/auth-middleware';
 import { authorizationMiddleware } from '@/middleware/authorization-middleware';
 import { organizationModule } from '@/modules/organizations';
-import { CreateProductBody } from './model';
+import { CreateProductBody, ListProductsQuery } from './model';
 import { productsService } from './service';
 
 export const productsApp = new Elysia({
@@ -12,22 +11,8 @@ export const productsApp = new Elysia({
 })
   .use(betterAuth)
   .use(authorizationMiddleware)
-  .get('/', () => {
-    const products = [
-      {
-        id: randomUUIDv7(),
-        name: 'Product 1',
-        price: 10.99,
-        description: 'This is product 1',
-      },
-      {
-        id: randomUUIDv7(),
-        name: 'Product 2',
-        price: 19.99,
-        description: 'This is product 2',
-      },
-    ];
-    return { data: products };
+  .get('/', async ({ query }) => productsService.listProducts(query), {
+    query: ListProductsQuery,
   })
   .post(
     '/',

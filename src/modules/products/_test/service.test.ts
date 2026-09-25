@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import { reset } from 'drizzle-seed';
 import { auths } from '@/db/auth-schema';
 import { organizations, products, userOrganizations } from '@/db/schema';
@@ -8,7 +9,7 @@ import { db } from '@/lib/pg-db';
 import { organizationModule } from '@/modules/organizations';
 import { productsService } from '../service';
 import { slugify } from '../utils';
-import { createProductOrganization } from './utils';
+import { createProductOrganization, seedProduct } from './utils';
 
 describe('products <services test>', () => {
   let test: TestHelpers;
@@ -135,6 +136,102 @@ describe('products <services test>', () => {
         );
 
         expect(result).toBeNull();
+      });
+    });
+    describe('listProducts', () => {
+      it('should return correct response', async () => {
+        const owner = await createProductOrganization(test);
+        const first = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        const second = await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const result = await productsService.listProducts({});
+
+        expect(result.items.map((product) => product.id)).toEqual([
+          first.id,
+          second.id,
+        ]);
+        expect(result.nextCursor).toBeNull();
+      });
+
+      it('should return correct response with query params', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        const bibit = await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const result = await productsService.listProducts({ type: 'bibit' });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0].id).toBe(bibit.id);
+        expect(result.items[0].type).toBe('bibit');
+      });
+
+      it('should return correct response with organizationId filter', async () => {
+        const firstOwner = await createProductOrganization(test);
+        const secondOwner = await createProductOrganization(test);
+        await seedProduct(firstOwner, 'Benih Ikan Nila', 'benih');
+        const secondProduct = await seedProduct(
+          secondOwner,
+          'Benih Ikan Lele',
+          'benih'
+        );
+
+        const result = await productsService.listProducts({
+          organizationId: secondOwner.organization.id,
+        });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0].id).toBe(secondProduct.id);
+      });
+
+      it('should exclude non-active products', async () => {
+        const owner = await createProductOrganization(test);
+        const active = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Benih Ikan Lele', 'benih', 'draft');
+        await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit', 'archived');
+
+        const result = await productsService.listProducts({});
+
+        expect(result.items.map((product) => product.id)).toEqual([active.id]);
+      });
+
+      it('should exclude soft-deleted products', async () => {
+        const owner = await createProductOrganization(test);
+        const kept = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        const deleted = await seedProduct(owner, 'Benih Ikan Lele', 'benih');
+        await db
+          .update(products)
+          .set({ deletedAt: new Date() })
+          .where(eq(products.id, deleted.id));
+
+        const result = await productsService.listProducts({});
+
+        expect(result.items.map((product) => product.id)).toEqual([kept.id]);
+      });
+
+      it('should return the next page after the cursor', async () => {
+        const owner = await createProductOrganization(test);
+        await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await seedProduct(owner, 'Benih Ikan Lele', 'benih');
+        const third = await seedProduct(owner, 'Bibit Ikan Gurame', 'bibit');
+
+        const firstPage = await productsService.listProducts({ limit: 2 });
+        expect(firstPage.items).toHaveLength(2);
+        expect(firstPage.nextCursor).not.toBeNull();
+
+        const secondPage = await productsService.listProducts({
+          limit: 2,
+          cursor: firstPage.nextCursor as string,
+        });
+        expect(secondPage.items.map((product) => product.id)).toEqual([
+          third.id,
+        ]);
+        expect(secondPage.nextCursor).toBeNull();
+      });
+
+      it('should return an empty list when no products exist', async () => {
+        const result = await productsService.listProducts({});
+
+        expect(result).toEqual({ items: [], nextCursor: null });
       });
     });
   });
