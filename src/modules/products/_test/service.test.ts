@@ -185,6 +185,31 @@ describe('products <services test>', () => {
         expect(first?.name).toBe('Benih Ikan Nila');
         expect(second?.name).toBe('Benih Ikan Nila');
       });
+
+      it('should still return product from db when redis is unavailable', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await redis.del(getProductDetailKey(product.slug));
+
+        const getSpy = spyOn(redis, 'get').mockRejectedValue(
+          new Error('redis down')
+        );
+        const setSpy = spyOn(redis, 'set').mockRejectedValue(
+          new Error('redis down')
+        );
+        try {
+          const result = await productsService.getProductBySlug(
+            organizationModule,
+            product.slug
+          );
+
+          expect(result?.id).toBe(product.id);
+          expect(result?.name).toBe('Benih Ikan Nila');
+        } finally {
+          getSpy.mockRestore();
+          setSpy.mockRestore();
+        }
+      });
     });
     describe('updateProduct', () => {
       it('should update product and invalidate the list cache', async () => {

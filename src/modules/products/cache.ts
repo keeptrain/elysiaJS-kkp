@@ -33,11 +33,38 @@ export function buildProductDetailFromCached(cached: string) {
   };
 }
 
+export async function readDetailCache(slug: string): Promise<string | null> {
+  try {
+    return await redis.get(getProductDetailKey(slug));
+  } catch {
+    return null;
+  }
+}
+
+export async function writeDetailCache(
+  slug: string,
+  value: unknown
+): Promise<void> {
+  try {
+    await redis.set(
+      getProductDetailKey(slug),
+      JSON.stringify(value),
+      'EX',
+      DETAIL_TTL
+    );
+  } catch {
+    // best-effort
+  }
+}
+
 export async function invalidateProductDetailCache(
   ...slugs: string[]
 ): Promise<void> {
-  if (slugs.length > 0) {
+  if (slugs.length === 0) return;
+  try {
     await redis.del(...slugs.map(getProductDetailKey));
+  } catch {
+    // best-effort
   }
 }
 

@@ -1,6 +1,5 @@
 import { and, asc, eq, gt, isNull, ne } from 'drizzle-orm';
 import { products } from '@/db/schema';
-import { redis } from '@/lib/bun-redis';
 import { db } from '@/lib/pg-db';
 import type { OrganizationContract } from '../organizations';
 import * as ProductCache from './cache';
@@ -78,8 +77,7 @@ export const productsService = {
     organizationModule: OrganizationContract,
     slug: string
   ) {
-    const cacheKey = ProductCache.getProductDetailKey(slug);
-    const cached = await redis.get(cacheKey);
+    const cached = await ProductCache.readDetailCache(slug);
     if (cached) return ProductCache.buildProductDetailFromCached(cached);
 
     const [product] = await db
@@ -115,12 +113,7 @@ export const productsService = {
 
     const result = { ...product, organization };
 
-    await redis.set(
-      cacheKey,
-      JSON.stringify(result),
-      'EX',
-      ProductCache.DETAIL_TTL
-    );
+    await ProductCache.writeDetailCache(slug, result);
     return result;
   },
   async createProduct(
