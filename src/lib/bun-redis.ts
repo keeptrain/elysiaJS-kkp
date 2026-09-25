@@ -1,6 +1,6 @@
-import { env } from '@/constants/env';
-import { type SecondaryStorage } from 'better-auth';
+import type { SecondaryStorage } from 'better-auth';
 import { RedisClient } from 'bun';
+import { env } from '@/constants/env';
 
 const redis = new RedisClient(env.REDIS_URL);
 await redis.connect();

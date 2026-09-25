@@ -7,7 +7,9 @@ import { auths } from '@/db/auth-schema';
 import { organizations, products, userOrganizations } from '@/db/schema';
 import { app } from '@/index';
 import { auth } from '@/lib/auth';
+import { redis } from '@/lib/bun-redis';
 import { db } from '@/lib/pg-db';
+import { listVersionKey } from '../cache';
 import { slugify } from '../utils';
 import {
   createProductMember,
@@ -26,6 +28,7 @@ describe('products/index Controller', () => {
   });
 
   beforeEach(async () => {
+    await redis.incr(listVersionKey);
     await reset(db, {
       ...auths,
       organizations,

@@ -5,8 +5,10 @@ import { reset } from 'drizzle-seed';
 import { auths } from '@/db/auth-schema';
 import { organizations, products, userOrganizations } from '@/db/schema';
 import { auth } from '@/lib/auth';
+import { redis } from '@/lib/bun-redis';
 import { db } from '@/lib/pg-db';
 import { organizationModule } from '@/modules/organizations';
+import { listVersionKey } from '../cache';
 import { productsService } from '../service';
 import { slugify } from '../utils';
 import { createProductOrganization, seedProduct } from './utils';
@@ -20,6 +22,7 @@ describe('products <services test>', () => {
   });
 
   beforeEach(async () => {
+    await redis.incr(listVersionKey);
     await reset(db, {
       ...auths,
       organizations,

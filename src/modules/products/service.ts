@@ -1,8 +1,10 @@
 import { randomUUIDv7 } from 'bun';
 import { and, asc, eq, gt, isNull } from 'drizzle-orm';
 import { products } from '@/db/schema';
+import { redis } from '@/lib/bun-redis';
 import { db } from '@/lib/pg-db';
 import type { OrganizationContract } from '../organizations';
+import { Cache, LIST_TTL, listKey, listVersionKey } from './cache';
 import type { CreateProductBody, ListProductsQuery } from './model';
 import { slugify } from './utils';
 
@@ -17,6 +19,13 @@ export type CreateProductResult =
 
 export const productsService = {
   async listProducts(query: ListProductsQuery) {
+    const version = (await redis.get(listVersionKey)) ?? '1';
+    const cacheKey = listKey(version, query);
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return Cache.buildProductsListFromCached(cached);
+    }
+
     const limit = query.limit ?? 10;
     const conditions = [
       isNull(products.deletedAt),
@@ -50,7 +59,9 @@ export const productsService = {
     const items = hasNextPage ? data.slice(0, -1) : data;
     const nextCursor = hasNextPage ? items[items.length - 1].id : null;
 
-    return { items, nextCursor };
+    const result = { items, nextCursor };
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', LIST_TTL);
+    return result;
   },
   async createProduct(
     organizationModule: OrganizationContract,
@@ -88,6 +99,10 @@ export const productsService = {
         createdBy: input.createdBy,
       })
       .returning();
+
+    if (product.status === 'active') {
+      await Cache.invalidateProductsListCache();
+    }
 
     return { ok: true, data: product };
   },
