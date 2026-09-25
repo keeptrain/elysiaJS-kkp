@@ -11,11 +11,17 @@ import { organizationService } from './service';
 
 export interface OrganizationContract {
   getCodeById: (id: number) => Promise<string | null>;
+  getSummaryById: (
+    id: number
+  ) => Promise<{ id: number; name: string; code: string } | null>;
 }
 
 export const organizationModule: OrganizationContract = {
   async getCodeById(id: number) {
     return organizationService.getCodeById(id);
+  },
+  async getSummaryById(id: number) {
+    return organizationService.getSummaryById(id);
   },
 };
 

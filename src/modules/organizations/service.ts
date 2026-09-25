@@ -18,6 +18,18 @@ export type AddMemberResult =
     };
 
 export const organizationService = {
+  async getSummaryById(id: number) {
+    const [organization] = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        code: organizations.code,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return organization ?? null;
+  },
   async getCodeById(id: number) {
     const [organization] = await db
       .select({ code: organizations.code })
