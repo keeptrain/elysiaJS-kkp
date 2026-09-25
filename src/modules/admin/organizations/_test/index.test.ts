@@ -8,6 +8,7 @@ import { organizations, userOrganizations } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import type { OrganizationsAction } from '@/modules/admin/organizations';
+import { generateOrganizationCode } from '@/modules/admin/organizations/utils';
 import { createAdminUser } from '@/modules/auth/_test/utils';
 
 const api = treaty(app).api;
@@ -143,7 +144,7 @@ describe('admin organizations integrations', () => {
         expect(response.status).toBe(200);
         const data = response.data as { name: string; code: string };
         expect(data.name).toBe('New Name');
-        expect(data.code).toBe('UPT-UPDATE');
+        expect(data.code).toBe(generateOrganizationCode('New Name'));
       });
     });
 

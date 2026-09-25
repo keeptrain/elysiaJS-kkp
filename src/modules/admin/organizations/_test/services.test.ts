@@ -7,6 +7,7 @@ import { organizations, userOrganizations } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/pg-db';
 import { organizationService } from '@/modules/admin/organizations/service';
+import { generateOrganizationCode } from '@/modules/admin/organizations/utils';
 import { createMemberUser } from './utils';
 
 describe('Admin Organization Service', () => {
@@ -102,7 +103,7 @@ describe('Admin Organization Service', () => {
   });
 
   describe('update', () => {
-    it('should update only the provided fields', async () => {
+    it('should update name and regenerate code from it', async () => {
       const created = await organizationService.create({
         name: 'Old Name',
         code: 'ORG-UPDATE',
@@ -113,7 +114,7 @@ describe('Admin Organization Service', () => {
       });
 
       expect(result?.name).toBe('New Name');
-      expect(result?.code).toBe('ORG-UPDATE');
+      expect(result?.code).toBe(generateOrganizationCode('New Name'));
     });
 
     it('should return null when organization does not exist', async () => {
