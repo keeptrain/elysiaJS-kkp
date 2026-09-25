@@ -330,6 +330,32 @@ describe('products/index Controller', () => {
         });
 
         describe('VALIDATION PATCH /products/my/:productId', () => {
+          it('should return 422 when body is empty without invalidating caches', async () => {
+            const owner = await createProductMember(test);
+            const product = await seedProduct(
+              owner,
+              'Benih Ikan Nila',
+              'benih',
+              'active'
+            );
+            const detailResponse = await api
+              .products({
+                slug: product.slug,
+              })
+              .get();
+            const versionBefore = await redis.get(listVersionKey);
+
+            const response = await api.products
+              .my({ productId: product.id })
+              .patch({}, { headers: owner.headers });
+
+            expect(response.status).toBe(422);
+            expect(await redis.get(listVersionKey)).toBe(versionBefore);
+            expect(await redis.get(getProductDetailKey(product.slug))).toBe(
+              JSON.stringify(detailResponse.data?.data)
+            );
+          });
+
           it('should return 422 if productId is not a uuid', async () => {
             const { headers } = await createProductMember(test);
 

@@ -23,15 +23,18 @@ export const CreateProductBody = t.Object({
 
 export type CreateProductBody = typeof CreateProductBody.static;
 
-export const UpdateProductBody = t.Object({
-  name: t.Optional(t.String({ minLength: 3, maxLength: 150 })),
-  type: t.Optional(t.Enum(PRODUCT_TYPES)),
-  status: t.Optional(t.Enum(PRODUCT_STATUSES)),
-  stockAssitance: t.Optional(t.Number({ minimum: 0 })),
-  priceAssitance: t.Optional(t.Number({ minimum: 0 })),
-  stockCommercial: t.Optional(t.Number({ minimum: 0 })),
-  priceCommercial: t.Optional(t.Number({ minimum: 0 })),
-});
+export const UpdateProductBody = t.Object(
+  {
+    name: t.Optional(t.String({ minLength: 3, maxLength: 150 })),
+    type: t.Optional(t.Enum(PRODUCT_TYPES)),
+    status: t.Optional(t.Enum(PRODUCT_STATUSES)),
+    stockAssitance: t.Optional(t.Number({ minimum: 0 })),
+    priceAssitance: t.Optional(t.Number({ minimum: 0 })),
+    stockCommercial: t.Optional(t.Number({ minimum: 0 })),
+    priceCommercial: t.Optional(t.Number({ minimum: 0 })),
+  },
+  { minProperties: 1 }
+);
 
 export type UpdateProductBody = typeof UpdateProductBody.static;
 
