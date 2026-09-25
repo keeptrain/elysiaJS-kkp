@@ -52,11 +52,14 @@ export const products = pgTable(
   'products',
   {
     id: uuid('id').primaryKey(),
-    type: text('type').notNull(),
+    type: text('type').$type<'benih' | 'bibit'>().notNull(),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
     sku: text('sku').notNull(),
-    status: text('status').notNull().default('draft'),
+    status: text('status')
+      .$type<'draft' | 'active' | 'archived'>()
+      .notNull()
+      .default('draft'),
     stockAssitance: integer('stock_assitance').notNull().default(0),
     priceAssitance: numeric('price_assitance', {
       precision: 12,
