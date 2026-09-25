@@ -1,6 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
-import { randomUUIDv7 } from 'bun';
 import { eq } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { sessions, users } from '@/db/auth-schema';
@@ -59,13 +58,12 @@ describe('session lifecycle', () => {
       const [org] = await db
         .insert(organizations)
         .values({
-          id: randomUUIDv7(),
           name: 'UPT Test',
           code: `UPT-${Date.now()}`,
         })
         .returning();
       await db.insert(userOrganizations).values({
-        id: randomUUIDv7(),
+        id: crypto.randomUUID(),
         userId: user.id,
         organizationId: org.id,
         position: 'head',
@@ -74,9 +72,9 @@ describe('session lifecycle', () => {
 
       const { headers } = await test.login({ userId: user.id });
       const sess = (await auth.api.getSession({ headers })) as unknown as {
-        session: { organizationId?: string };
+        session: { organizationId?: number };
         organization: {
-          id: string;
+          id: number;
           position: string;
           roles: string[];
         } | null;
@@ -94,7 +92,7 @@ describe('session lifecycle', () => {
         new Request(`${base}/api/auth/get-session`, { headers })
       );
       const json = (await res.json()) as {
-        organization: { id: string };
+        organization: { id: number };
       };
       expect(json.organization.id).toBe(org.id);
     });
@@ -106,7 +104,6 @@ describe('session lifecycle', () => {
       const [org] = await db
         .insert(organizations)
         .values({
-          id: randomUUIDv7(),
           name: 'UPT Fresh',
           code: `UPTF-${Date.now()}`,
         })
@@ -119,7 +116,7 @@ describe('session lifecycle', () => {
       expect(before.organization).toBeNull();
 
       await db.insert(userOrganizations).values({
-        id: randomUUIDv7(),
+        id: crypto.randomUUID(),
         userId: user.id,
         organizationId: org.id,
         position: 'staff',
@@ -127,7 +124,7 @@ describe('session lifecycle', () => {
       });
 
       const after = (await auth.api.getSession({ headers })) as unknown as {
-        organization: { id: string; position: string; roles: string[] };
+        organization: { id: number; position: string; roles: string[] };
       };
       expect(after.organization).toEqual({
         id: org.id,

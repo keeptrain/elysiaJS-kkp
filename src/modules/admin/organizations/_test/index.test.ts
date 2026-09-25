@@ -82,7 +82,7 @@ describe('admin organizations integrations', () => {
 
         expect(response.status).toBe(200);
         const data = response.data as {
-          id: string;
+          id: number;
           name: string;
           code: string;
         };
@@ -112,13 +112,13 @@ describe('admin organizations integrations', () => {
         );
 
         const response = await api.organizations.post(
-          { action: 'get', id: (created.data as { id: string }).id },
+          { action: 'get', id: (created.data as { id: number }).id },
           { headers }
         );
 
         expect(response.status).toBe(200);
-        expect((response.data as { id: string }).id).toBe(
-          (created.data as { id: string }).id
+        expect((response.data as { id: number }).id).toBe(
+          (created.data as { id: number }).id
         );
       });
     });
@@ -134,7 +134,7 @@ describe('admin organizations integrations', () => {
         const response = await api.organizations.post(
           {
             action: 'update',
-            id: (created.data as { id: string }).id,
+            id: (created.data as { id: number }).id,
             name: 'New Name',
           },
           { headers }
@@ -156,7 +156,7 @@ describe('admin organizations integrations', () => {
         );
 
         const response = await api.organizations.post(
-          { action: 'delete', id: (created.data as { id: string }).id },
+          { action: 'delete', id: (created.data as { id: number }).id },
           { headers }
         );
 
@@ -178,7 +178,7 @@ describe('admin organizations integrations', () => {
           {
             action: 'addMember',
             userId: member.id,
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
             roles: ['shop_operator'],
           },
           { headers }
@@ -187,7 +187,7 @@ describe('admin organizations integrations', () => {
         const response = await api.organizations.post(
           {
             action: 'listMembers',
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
           },
           { headers }
         );
@@ -214,7 +214,7 @@ describe('admin organizations integrations', () => {
           {
             action: 'addMember',
             userId: member.id,
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
             position: 'staff',
             roles: ['shop_operator'],
           },
@@ -241,7 +241,7 @@ describe('admin organizations integrations', () => {
           {
             action: 'addMember',
             userId: member.id,
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
             roles: ['shop_operator'],
           },
           { headers }
@@ -251,7 +251,7 @@ describe('admin organizations integrations', () => {
           {
             action: 'updateMemberRole',
             userId: member.id,
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
             roles: ['shop_admin'],
           },
           { headers }
@@ -277,7 +277,7 @@ describe('admin organizations integrations', () => {
           {
             action: 'addMember',
             userId: member.id,
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
             roles: ['shop_operator'],
           },
           { headers }
@@ -287,7 +287,7 @@ describe('admin organizations integrations', () => {
           {
             action: 'removeMember',
             userId: member.id,
-            organizationId: (created.data as { id: string }).id,
+            organizationId: (created.data as { id: number }).id,
           },
           { headers }
         );
@@ -328,7 +328,7 @@ describe('admin organizations integrations', () => {
     it('should return 404 when organization does not exist', async () => {
       const headers = await adminHeaders();
       const response = await api.organizations.post(
-        { action: 'get', id: 'organization-not-found' },
+        { action: 'get', id: 999999 },
         { headers }
       );
 
@@ -343,7 +343,7 @@ describe('admin organizations integrations', () => {
       const response = await api.organizations.post(
         {
           action: 'update',
-          id: 'organization-not-found',
+          id: 999999,
           name: 'New Name',
         },
         { headers }

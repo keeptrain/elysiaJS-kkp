@@ -1,5 +1,4 @@
 import type { TestHelpers } from 'better-auth/plugins';
-import { randomUUIDv7 } from 'bun';
 import { organizations, userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import { createUser } from '@/modules/auth/_test/utils';
@@ -17,13 +16,12 @@ export async function createMemberUser(
   const [org] = await db
     .insert(organizations)
     .values({
-      id: randomUUIDv7(),
       name: 'UPT Test',
       code: `UPT-${Date.now()}-${Math.random()}`,
     })
     .returning();
   await db.insert(userOrganizations).values({
-    id: randomUUIDv7(),
+    id: crypto.randomUUID(),
     userId: user.id,
     organizationId: org.id,
     position: opts.position ?? 'staff',

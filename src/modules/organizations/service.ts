@@ -19,7 +19,7 @@ export type AddMemberResult =
 
 export const organizationService = {
   async listMembers(
-    organizations: { organizationId: string; userId: string },
+    organizations: { organizationId: number; userId: string },
     query: CursorPaginationQuery
   ) {
     const { organizationId: org } = organizations;
@@ -57,7 +57,7 @@ export const organizationService = {
   },
   async addMember(
     userModule: UserContract,
-    organizationId: string,
+    organizationId: number,
     memberOptions: AddMemberBody
   ): Promise<AddMemberResult> {
     const userId = await userModule.getUserIdByEmail(memberOptions.email);
@@ -98,7 +98,7 @@ export const organizationService = {
   },
   async updateMember(
     userId: string,
-    organizationId: string,
+    organizationId: number,
     data: UpdateMemberBody
   ) {
     const { position, roles } = data;
@@ -120,7 +120,7 @@ export const organizationService = {
     if (updated) await invalidateMemberCache(userId);
     return updated ?? null;
   },
-  async removeMember(userId: string, organizationId: string) {
+  async removeMember(userId: string, organizationId: number) {
     const [removed] = await db
       .delete(userOrganizations)
       .where(

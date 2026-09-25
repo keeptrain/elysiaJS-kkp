@@ -9,7 +9,7 @@ const actionBody = t.Union([
     action: t.Literal('list'),
     filters: t.Optional(t.Object({ search: t.Optional(t.String()) })),
   }),
-  t.Object({ action: t.Literal('get'), id: t.String() }),
+  t.Object({ action: t.Literal('get'), id: t.Integer() }),
   t.Object({
     action: t.Literal('create'),
     name: t.String(),
@@ -17,32 +17,32 @@ const actionBody = t.Union([
   }),
   t.Object({
     action: t.Literal('update'),
-    id: t.String(),
+    id: t.Integer(),
     name: t.Optional(t.String()),
     code: t.Optional(t.String()),
   }),
-  t.Object({ action: t.Literal('delete'), id: t.String() }),
+  t.Object({ action: t.Literal('delete'), id: t.Integer() }),
   t.Object({
     action: t.Literal('listMembers'),
-    organizationId: t.String(),
+    organizationId: t.Integer(),
   }),
   t.Object({
     action: t.Literal('addMember'),
     userId: t.String(),
-    organizationId: t.String(),
+    organizationId: t.Integer(),
     position: t.Optional(t.String()),
     roles: t.Array(t.String(), { minItems: 1 }),
   }),
   t.Object({
     action: t.Literal('updateMemberRole'),
     userId: t.String(),
-    organizationId: t.String(),
+    organizationId: t.Integer(),
     roles: t.Array(t.String(), { minItems: 1 }),
   }),
   t.Object({
     action: t.Literal('removeMember'),
     userId: t.String(),
-    organizationId: t.String(),
+    organizationId: t.Integer(),
   }),
 ]);
 

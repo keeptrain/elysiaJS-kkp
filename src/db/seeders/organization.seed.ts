@@ -1,5 +1,3 @@
-import { randomUUIDv7 } from 'bun';
-import { eq } from 'drizzle-orm';
 import * as schemas from '@/db/schema';
 import { db } from '@/lib/pg-db';
 import { organizationService } from '@/modules/organizations/service';
@@ -24,31 +22,16 @@ export async function organizationSeeder() {
     'Balai Besar Perikanan Budidaya Laut Lampung',
   ];
 
-  const organizationsData = uptNames.map((name) => {
-    const id = randomUUIDv7();
-    return {
-      id: id,
-      name: name,
-      code: `UPT-${id}`,
-    };
-  });
+  const organizationsData = uptNames.map((name, index) => ({
+    name,
+    code: `UPT-${String(index + 1).padStart(2, '0')}`,
+  }));
 
   await db.insert(schemas.organizations).values(organizationsData);
 }
 
 export async function userOrganizationSeeder() {
-  const [organizationId] = await db
-    .select({ id: schemas.organizations.id })
-    .from(schemas.organizations)
-    .where(
-      eq(
-        schemas.organizations.name,
-        'Balai Besar Perikanan Budidaya Air Tawar Sukabumi'
-      )
-    )
-    .limit(1);
-
-  await organizationService.addMember(userServices, organizationId.id, {
+  await organizationService.addMember(userServices, 1, {
     email: 'remajamesjid1945@gmail.com',
     position: 'head',
   });

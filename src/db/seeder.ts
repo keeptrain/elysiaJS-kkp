@@ -2,10 +2,13 @@ import { reset } from 'drizzle-seed';
 import { env } from '@/constants/env';
 import * as schemas from '@/db/schema';
 import { db } from '@/lib/pg-db';
+import { auths } from './auth-schema';
 import {
   organizationSeeder,
   userOrganizationSeeder,
 } from './seeders/organization.seed';
+import { productsSeeder } from './seeders/products.seed';
+import { userSeeder } from './seeders/users.seed';
 
 const FORCE = process.argv.includes('--force');
 
@@ -18,9 +21,11 @@ if (!FORCE && (env.NODE_ENV === 'staging' || env.isProduction)) {
 }
 
 export async function defaultSeeders() {
-  await reset(db, schemas);
+  await reset(db, { ...auths, schemas });
+  await userSeeder();
   await organizationSeeder();
   await userOrganizationSeeder();
+  await productsSeeder();
 }
 
 if (import.meta.main) {

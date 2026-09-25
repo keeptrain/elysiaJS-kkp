@@ -18,7 +18,7 @@ export const organizationRoutes = new Elysia({
   .get(
     'my',
     async ({ query, user: { id: userId }, organization }) => {
-      const organizationId = (organization as { id: string }).id;
+      const organizationId = (organization as { id: number }).id;
       const res = await organizationService.listMembers(
         { organizationId, userId },
         query
@@ -38,7 +38,7 @@ export const organizationRoutes = new Elysia({
   .post(
     'my/add',
     async ({ body, organization }) => {
-      const organizationId = (organization as { id: string }).id;
+      const organizationId = (organization as { id: number }).id;
       const result = await organizationService.addMember(
         userModule,
         organizationId,
@@ -67,7 +67,7 @@ export const organizationRoutes = new Elysia({
   .patch(
     'my/:memberId',
     async ({ params, body, organization }) => {
-      const organizationId = (organization as { id: string }).id;
+      const organizationId = (organization as { id: number }).id;
       const result = await organizationService.updateMember(
         params.memberId,
         organizationId,
@@ -90,7 +90,7 @@ export const organizationRoutes = new Elysia({
   .delete(
     'my/:memberId',
     async ({ params, organization }) => {
-      const organizationId = (organization as { id: string }).id;
+      const organizationId = (organization as { id: number }).id;
       const removed = await organizationService.removeMember(
         params.memberId,
         organizationId

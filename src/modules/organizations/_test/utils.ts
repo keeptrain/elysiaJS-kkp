@@ -8,7 +8,6 @@ export async function createOrganization(name = 'Test Organization') {
   const [organization] = await db
     .insert(organizations)
     .values({
-      id: randomUUIDv7(),
       name,
       code: `ORG-${randomUUIDv7()}`,
     })
@@ -27,7 +26,7 @@ export async function createMembers(test: TestHelpers, count: number) {
     const [member] = await db
       .insert(userOrganizations)
       .values({
-        id: randomUUIDv7(),
+        id: crypto.randomUUID(),
         userId: user.id,
         organizationId,
         position: index === 0 ? 'head' : 'staff',

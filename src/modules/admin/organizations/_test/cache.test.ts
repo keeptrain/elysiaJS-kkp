@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
-import { randomUUIDv7 } from 'bun';
 import { organizations, userOrganizations } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { redis } from '@/lib/bun-redis';
@@ -26,13 +25,12 @@ describe('findMemberByUserId cache-aside', () => {
     const [org] = await db
       .insert(organizations)
       .values({
-        id: randomUUIDv7(),
         name: 'UPT Cache',
         code: `UPTC-${Date.now()}-${Math.random()}`,
       })
       .returning();
     await db.insert(userOrganizations).values({
-      id: randomUUIDv7(),
+      id: crypto.randomUUID(),
       userId: user.id,
       organizationId: org.id,
       position: 'staff',

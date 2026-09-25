@@ -73,9 +73,7 @@ describe('Admin Organization Service', () => {
     });
 
     it('should return null when organization does not exist', async () => {
-      const result = await organizationService.getById(
-        'organization-not-found'
-      );
+      const result = await organizationService.getById(999999);
 
       expect(result).toBeNull();
     });
@@ -118,10 +116,9 @@ describe('Admin Organization Service', () => {
     });
 
     it('should return null when organization does not exist', async () => {
-      const result = await organizationService.update(
-        'organization-not-found',
-        { name: 'New Name' }
-      );
+      const result = await organizationService.update(999999, {
+        name: 'New Name',
+      });
 
       expect(result).toBeNull();
     });

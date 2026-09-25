@@ -22,7 +22,7 @@ export const organizationService = {
     return base.orderBy(desc(organizations.createdAt));
   },
 
-  async getById(id: string) {
+  async getById(id: number) {
     const [org] = await db
       .select()
       .from(organizations)
@@ -38,13 +38,13 @@ export const organizationService = {
       await tx.execute(sql`select ${ORGANIZATION_CODE_LOCK}`);
       const [org] = await tx
         .insert(organizations)
-        .values({ id: randomUUIDv7(), name: data.name, code })
+        .values({ name: data.name, code })
         .returning();
       return org;
     });
   },
 
-  async update(id: string, data: { name?: string; code?: string }) {
+  async update(id: number, data: { name?: string; code?: string }) {
     return db.transaction(async (tx) => {
       await tx.execute(sql`select ${ORGANIZATION_CODE_LOCK}`);
       const [current] = await tx
@@ -72,13 +72,13 @@ export const organizationService = {
     });
   },
 
-  async delete(id: string) {
+  async delete(id: number) {
     await db.delete(organizations).where(eq(organizations.id, id));
     return { success: true };
   },
 
   // ── Member management ──────────────────────────────────────────────────
-  async listMembers(organizationId: string) {
+  async listMembers(organizationId: number) {
     return db
       .select()
       .from(userOrganizations)
@@ -87,7 +87,7 @@ export const organizationService = {
 
   async addMember(data: {
     userId: string;
-    organizationId: string;
+    organizationId: number;
     position?: OrganizationPosition;
     roles: AppRole[];
   }) {
@@ -104,7 +104,7 @@ export const organizationService = {
 
   async updateMemberRole(
     userId: string,
-    organizationId: string,
+    organizationId: number,
     roles: AppRole[]
   ) {
     const [member] = await db
@@ -121,7 +121,7 @@ export const organizationService = {
     return member ?? null;
   },
 
-  async removeMember(userId: string, organizationId: string) {
+  async removeMember(userId: string, organizationId: number) {
     await db
       .delete(userOrganizations)
       .where(
