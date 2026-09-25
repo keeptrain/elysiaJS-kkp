@@ -82,6 +82,55 @@ export const productsService = {
     );
     return result;
   },
+  async getProductBySlug(
+    organizationModule: OrganizationContract,
+    slug: string
+  ) {
+    const cacheKey = ProductCache.getProductDetailKey(slug);
+    const cached = await redis.get(cacheKey);
+    if (cached) return ProductCache.buildProductDetailFromCached(cached);
+
+    const [product] = await db
+      .select({
+        id: products.id,
+        type: products.type,
+        name: products.name,
+        slug: products.slug,
+        sku: products.sku,
+        status: products.status,
+        stockAssitance: products.stockAssitance,
+        priceAssitance: products.priceAssitance,
+        stockCommercial: products.stockCommercial,
+        priceCommercial: products.priceCommercial,
+        organizationId: products.organizationId,
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.slug, slug),
+          eq(products.status, 'active'),
+          isNull(products.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!product) return null;
+
+    const organization = await organizationModule.getSummaryById(
+      product.organizationId
+    );
+    if (!organization) return null;
+
+    const result = { ...product, organization };
+
+    await redis.set(
+      cacheKey,
+      JSON.stringify(result),
+      'EX',
+      ProductCache.DETAIL_TTL
+    );
+    return result;
+  },
   async createProduct(
     organizationModule: OrganizationContract,
     input: CreateProductInput
@@ -159,6 +208,7 @@ export const productsService = {
 
     if (!product) return { ok: false, code: 'PRODUCT_NOT_FOUND' };
     await ProductCache.invalidateProductListCache();
+    await ProductCache.invalidateProductDetailCache(current.slug, product.slug);
     return { ok: true, data: product };
   },
   async getProductById(id: string, organizationId?: number) {

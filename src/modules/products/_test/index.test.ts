@@ -2,6 +2,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { treaty } from '@elysia/eden';
 import type { TestHelpers } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import { reset } from 'drizzle-seed';
 import { auths } from '@/db/auth-schema';
 import { organizations, products, userOrganizations } from '@/db/schema';
@@ -9,7 +10,7 @@ import { app } from '@/index';
 import { auth } from '@/lib/auth';
 import { redis } from '@/lib/bun-redis';
 import { db } from '@/lib/pg-db';
-import { listVersionKey } from '../cache';
+import { getProductDetailKey, listVersionKey } from '../cache';
 import { slugify } from '../utils';
 import {
   createProductMember,
@@ -109,6 +110,65 @@ describe('products/index Controller', () => {
         });
       });
     });
+
+    describe('GET /products/:slug', () => {
+      it('should return product detail with organization data', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(
+          owner,
+          'Benih Ikan Nila',
+          'benih',
+          'active'
+        );
+
+        const response = await api.products({ slug: product.slug }).get();
+
+        expect(response.status).toBe(200);
+        expect(response.data?.data.id).toBe(product.id);
+        expect(response.data?.data.name).toBe('Benih Ikan Nila');
+        expect(response.data?.data.organization).toEqual({
+          id: owner.organization.id,
+          name: owner.organization.name,
+          code: owner.organization.code,
+        });
+      });
+
+      it('should return 404 when product slug does not exist', async () => {
+        const response = await api
+          .products({
+            slug: 'product-not-found',
+          })
+          .get();
+
+        expect(response.status).toBe(404);
+        expect(response.error?.value).toEqual({
+          message: 'Product not found',
+        });
+      });
+
+      it('should return cached product detail', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(
+          owner,
+          'Bibit Ikan Gurame',
+          'bibit',
+          'active'
+        );
+        await redis.del(getProductDetailKey(product.slug));
+
+        const first = await api.products({ slug: product.slug }).get();
+        await db
+          .update(products)
+          .set({ name: 'Changed Outside Cache' })
+          .where(eq(products.id, product.id));
+        const second = await api.products({ slug: product.slug }).get();
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+        expect(second.data?.data.name).toBe('Bibit Ikan Gurame');
+      });
+    });
+
     describe('POST /products', () => {
       it('should return correct response', async () => {
         const { organization, user, headers } = await createProductMember(test);
@@ -223,7 +283,8 @@ describe('products/index Controller', () => {
           expect(response.status).toBe(422);
         });
       });
-      describe('PATCH /products/:productId', () => {
+
+      describe('PATCH /products/my/:productId', () => {
         it('should update product and return the updated data', async () => {
           const owner = await createProductMember(test);
           const product = await seedProduct(
@@ -233,8 +294,8 @@ describe('products/index Controller', () => {
             'active'
           );
 
-          const response = await api
-            .products({ productId: product.id })
+          const response = await api.products
+            .my({ productId: product.id })
             .patch(
               { name: 'Benih Ikan Lele', priceCommercial: 250 },
               { headers: owner.headers }
@@ -258,8 +319,8 @@ describe('products/index Controller', () => {
             'active'
           );
 
-          const response = await api
-            .products({ productId: product.id })
+          const response = await api.products
+            .my({ productId: product.id })
             .patch({ name: 'Benih Ikan Lele' }, { headers: member.headers });
 
           expect(response.status).toBe(404);
@@ -268,12 +329,12 @@ describe('products/index Controller', () => {
           });
         });
 
-        describe('VALIDATION PATCH /products/:productId', () => {
+        describe('VALIDATION PATCH /products/my/:productId', () => {
           it('should return 422 if productId is not a uuid', async () => {
             const { headers } = await createProductMember(test);
 
-            const response = await api
-              .products({
+            const response = await api.products
+              .my({
                 productId: 'not-a-uuid',
               })
               .patch({ name: 'Benih Ikan Lele' }, { headers });
@@ -290,8 +351,8 @@ describe('products/index Controller', () => {
               'active'
             );
 
-            const response = await api
-              .products({ productId: product.id })
+            const response = await api.products
+              .my({ productId: product.id })
               .patch({ name: 'ab' }, { headers: owner.headers });
 
             expect(response.status).toBe(422);
@@ -306,8 +367,8 @@ describe('products/index Controller', () => {
               'active'
             );
 
-            const response = await api
-              .products({ productId: product.id })
+            const response = await api.products
+              .my({ productId: product.id })
               .patch({ name: 'a'.repeat(151) }, { headers: owner.headers });
 
             expect(response.status).toBe(422);
@@ -322,8 +383,8 @@ describe('products/index Controller', () => {
               'active'
             );
 
-            const response = await api
-              .products({ productId: product.id })
+            const response = await api.products
+              .my({ productId: product.id })
               .patch(
                 { type: 'udang' as unknown as 'benih' },
                 { headers: owner.headers }
@@ -341,8 +402,8 @@ describe('products/index Controller', () => {
               'active'
             );
 
-            const response = await api
-              .products({ productId: product.id })
+            const response = await api.products
+              .my({ productId: product.id })
               .patch(
                 { status: 'deleted' as unknown as 'draft' },
                 { headers: owner.headers }
@@ -360,23 +421,23 @@ describe('products/index Controller', () => {
               'active'
             );
 
-            const response1 = await api
-              .products({ productId: product.id })
+            const response1 = await api.products
+              .my({ productId: product.id })
               .patch({ stockAssitance: -1 }, { headers: owner.headers });
             expect(response1.status).toBe(422);
 
-            const response2 = await api
-              .products({ productId: product.id })
+            const response2 = await api.products
+              .my({ productId: product.id })
               .patch({ priceAssitance: -10 }, { headers: owner.headers });
             expect(response2.status).toBe(422);
 
-            const response3 = await api
-              .products({ productId: product.id })
+            const response3 = await api.products
+              .my({ productId: product.id })
               .patch({ stockCommercial: -5 }, { headers: owner.headers });
             expect(response3.status).toBe(422);
 
-            const response4 = await api
-              .products({ productId: product.id })
+            const response4 = await api.products
+              .my({ productId: product.id })
               .patch({ priceCommercial: -100 }, { headers: owner.headers });
             expect(response4.status).toBe(422);
           });

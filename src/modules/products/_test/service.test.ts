@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth';
 import { redis } from '@/lib/bun-redis';
 import { db } from '@/lib/pg-db';
 import { organizationModule } from '@/modules/organizations';
-import { listVersionKey } from '../cache';
+import { getProductDetailKey, listVersionKey } from '../cache';
 import { productsService } from '../service';
 import { slugify } from '../utils';
 import { createProductOrganization, seedProduct } from './utils';
@@ -141,6 +141,51 @@ describe('products <services test>', () => {
         expect(result).toBeNull();
       });
     });
+    describe('getProductBySlug', () => {
+      it('should return correct response', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await redis.del(getProductDetailKey(product.slug));
+
+        const result = await productsService.getProductBySlug(
+          organizationModule,
+          product.slug
+        );
+
+        expect(result?.id).toBe(product.id);
+        expect(result?.name).toBe('Benih Ikan Nila');
+        expect(result?.slug).toBe(product.slug);
+        expect(result?.sku).toBe(product.sku);
+        expect(result?.status).toBe('active');
+        expect(result?.organization).toEqual({
+          id: owner.organization.id,
+          name: owner.organization.name,
+          code: owner.organization.code,
+        });
+      });
+
+      it('should return cached result on second call', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await redis.del(getProductDetailKey(product.slug));
+
+        const first = await productsService.getProductBySlug(
+          organizationModule,
+          product.slug
+        );
+        await db
+          .update(products)
+          .set({ name: 'Changed Outside Cache' })
+          .where(eq(products.id, product.id));
+        const second = await productsService.getProductBySlug(
+          organizationModule,
+          product.slug
+        );
+
+        expect(first?.name).toBe('Benih Ikan Nila');
+        expect(second?.name).toBe('Benih Ikan Nila');
+      });
+    });
     describe('updateProduct', () => {
       it('should update product and invalidate the list cache', async () => {
         const owner = await createProductOrganization(test);
@@ -189,6 +234,33 @@ describe('products <services test>', () => {
         );
 
         expect(result).toEqual({ ok: false, code: 'PRODUCT_NOT_FOUND' });
+      });
+
+      it('should invalidate the detail cache on update', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        const oldSlug = product.slug;
+        await redis.del(getProductDetailKey(oldSlug));
+        await productsService.getProductBySlug(organizationModule, oldSlug);
+
+        const result = await productsService.updateProduct(
+          organizationModule,
+          owner.organization.id,
+          product.id,
+          { name: 'Benih Ikan Lele' }
+        );
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(
+          await productsService.getProductBySlug(organizationModule, oldSlug)
+        ).toBeNull();
+
+        const fresh = await productsService.getProductBySlug(
+          organizationModule,
+          result.data.slug
+        );
+        expect(fresh?.name).toBe('Benih Ikan Lele');
       });
     });
     describe('listProducts', () => {
@@ -326,6 +398,64 @@ describe('products <services test>', () => {
           ok: false,
           code: 'ORGANIZATION_NOT_FOUND',
         });
+      });
+    });
+
+    describe('getProductBySlug', () => {
+      it('should return null when product does not exist', async () => {
+        await createProductOrganization(test);
+
+        const result = await productsService.getProductBySlug(
+          organizationModule,
+          'nonexistent-slug'
+        );
+
+        expect(result).toBeNull();
+      });
+
+      it('should return null when product is not active', async () => {
+        const owner = await createProductOrganization(test);
+        const draft = await seedProduct(
+          owner,
+          'Benih Ikan Nila',
+          'benih',
+          'draft'
+        );
+        const archived = await seedProduct(
+          owner,
+          'Bibit Ikan Gurame',
+          'bibit',
+          'archived'
+        );
+
+        const draftResult = await productsService.getProductBySlug(
+          organizationModule,
+          draft.slug
+        );
+        const archivedResult = await productsService.getProductBySlug(
+          organizationModule,
+          archived.slug
+        );
+
+        expect(draftResult).toBeNull();
+        expect(archivedResult).toBeNull();
+      });
+
+      it('should return null when product is soft-deleted', async () => {
+        const owner = await createProductOrganization(test);
+        const product = await seedProduct(owner, 'Benih Ikan Nila', 'benih');
+        await redis.del(getProductDetailKey(product.slug));
+        await db
+          .update(products)
+          .set({ deletedAt: new Date() })
+          .where(eq(products.id, product.id));
+
+        const result = await productsService.getProductBySlug(
+          organizationModule,
+          product.slug
+        );
+
+        expect(result).toBeNull();
       });
     });
   });

@@ -18,6 +18,22 @@ export const productsApp = new Elysia({
   .get('/', async ({ query }) => productsService.listProducts(query), {
     query: ListProductsQuery,
   })
+  .get(
+    '/:slug',
+    async ({ params }) => {
+      const product = await productsService.getProductBySlug(
+        organizationModule,
+        params.slug
+      );
+      if (!product) return status(404, { message: 'Product not found' });
+      return { data: product };
+    },
+    {
+      params: t.Object({
+        slug: t.String({ minLength: 1, maxLength: 180 }),
+      }),
+    }
+  )
   .post(
     '/',
     async ({ body, user, organization }) => {
@@ -48,7 +64,7 @@ export const productsApp = new Elysia({
     }
   )
   .patch(
-    '/:productId',
+    '/my/:productId',
     async ({ params, body, organization }) => {
       const organizationId = (organization as { id: number }).id;
       const result = await productsService.updateProduct(
