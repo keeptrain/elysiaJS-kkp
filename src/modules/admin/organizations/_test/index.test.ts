@@ -90,6 +90,17 @@ describe('admin organizations integrations', () => {
         expect(data.code).toBe('UPT-TEST');
         expect(data.id).toBeDefined();
       });
+
+      it('should generate code when code is omitted', async () => {
+        const headers = await adminHeaders();
+        const response = await api.organizations.post(
+          { action: 'create', name: 'Kantor Kelurahan' },
+          { headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect((response.data as { code: string }).code).toBe('KK');
+      });
     });
 
     describe('POST /organizations action=get', () => {
@@ -292,16 +303,6 @@ describe('admin organizations integrations', () => {
       const headers = await adminHeaders();
       const response = await api.organizations.post(
         { action: 'invalid' } as unknown as ActionBody,
-        { headers }
-      );
-
-      expect(response.status).toBe(422);
-    });
-
-    it('should return 422 when create fields are missing', async () => {
-      const headers = await adminHeaders();
-      const response = await api.organizations.post(
-        { action: 'create', name: 'UPT Missing Code' } as unknown as ActionBody,
         { headers }
       );
 

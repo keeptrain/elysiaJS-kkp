@@ -92,6 +92,14 @@ describe('Admin Organization Service', () => {
       expect(result.code).toBe('ORG-CREATE');
       expect(result.id).toBeDefined();
     });
+
+    it('should generate code from organization name when code is omitted', async () => {
+      const result = await organizationService.create({
+        name: 'Kantor Kelurahan',
+      });
+
+      expect(result.code).toBe('KK');
+    });
   });
 
   describe('update', () => {
@@ -116,6 +124,19 @@ describe('Admin Organization Service', () => {
       );
 
       expect(result).toBeNull();
+    });
+
+    it('should regenerate code when organization name changes without code', async () => {
+      const created = await organizationService.create({
+        name: 'Kantor Kelurahan',
+      });
+
+      const result = await organizationService.update(created.id, {
+        name: 'Dinas Kesehatan',
+      });
+
+      expect(result?.name).toBe('Dinas Kesehatan');
+      expect(result?.code).toBe('DK');
     });
   });
 

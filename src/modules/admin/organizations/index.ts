@@ -13,7 +13,7 @@ const actionBody = t.Union([
   t.Object({
     action: t.Literal('create'),
     name: t.String(),
-    code: t.String(),
+    code: t.Optional(t.String()),
   }),
   t.Object({
     action: t.Literal('update'),

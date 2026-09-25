@@ -1,5 +1,5 @@
 import { randomUUIDv7 } from 'bun';
-import { and, desc, eq, like } from 'drizzle-orm';
+import { and, desc, eq, like, sql } from 'drizzle-orm';
 import type { AppRole, OrganizationPosition } from '@/constants/access-control';
 import { organizations, userOrganizations } from '@/db/schema';
 import { db } from '@/lib/pg-db';
@@ -7,6 +7,9 @@ import {
   findMemberByUserId,
   invalidateMemberCache,
 } from '@/modules/organizations/membership';
+import { generateOrganizationCode } from './utils';
+
+const ORGANIZATION_CODE_LOCK = sql`pg_advisory_xact_lock(hashtext('organizations:code'))`;
 
 export const organizationService = {
   async list(filters?: { search?: string }) {
@@ -28,24 +31,45 @@ export const organizationService = {
     return org ?? null;
   },
 
-  async create(data: { name: string; code: string }) {
-    const [org] = await db
-      .insert(organizations)
-      .values({ id: randomUUIDv7(), ...data })
-      .returning();
-    return org;
+  async create(data: { name: string; code?: string }) {
+    const code = data.code ?? generateOrganizationCode(data.name);
+
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select ${ORGANIZATION_CODE_LOCK}`);
+      const [org] = await tx
+        .insert(organizations)
+        .values({ id: randomUUIDv7(), name: data.name, code })
+        .returning();
+      return org;
+    });
   },
 
   async update(id: string, data: { name?: string; code?: string }) {
-    const patch = Object.fromEntries(
-      Object.entries(data).filter(([, v]) => v !== undefined)
-    );
-    const [org] = await db
-      .update(organizations)
-      .set(patch)
-      .where(eq(organizations.id, id))
-      .returning();
-    return org ?? null;
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select ${ORGANIZATION_CODE_LOCK}`);
+      const [current] = await tx
+        .select({ name: organizations.name, code: organizations.code })
+        .from(organizations)
+        .where(eq(organizations.id, id))
+        .limit(1);
+
+      if (!current) return null;
+
+      const patch = {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.code !== undefined
+          ? { code: data.code }
+          : data.name !== undefined
+            ? { code: generateOrganizationCode(data.name) }
+            : {}),
+      };
+      const [org] = await tx
+        .update(organizations)
+        .set(patch)
+        .where(eq(organizations.id, id))
+        .returning();
+      return org ?? null;
+    });
   },
 
   async delete(id: string) {
