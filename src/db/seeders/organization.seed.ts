@@ -1,5 +1,6 @@
 import * as schemas from '@/db/schema';
 import { db } from '@/lib/pg-db';
+import { generateOrganizationCode } from '@/modules/admin/organizations/utils';
 import { organizationService } from '@/modules/organizations/service';
 import { userServices } from '@/modules/users/service';
 
@@ -22,16 +23,22 @@ export async function organizationSeeder() {
     'Balai Besar Perikanan Budidaya Laut Lampung',
   ];
 
-  const organizationsData = uptNames.map((name, index) => ({
+  const organizationsData = uptNames.map((name) => ({
     name,
-    code: `UPT-${String(index + 1).padStart(2, '0')}`,
+    code: generateOrganizationCode(name),
   }));
 
   await db.insert(schemas.organizations).values(organizationsData);
 }
 
 export async function userOrganizationSeeder() {
-  await organizationService.addMember(userServices, 1, {
+  const [firstOrganization] = await db
+    .select({ id: schemas.organizations.id })
+    .from(schemas.organizations)
+    .orderBy(schemas.organizations.id)
+    .limit(1);
+
+  await organizationService.addMember(userServices, firstOrganization.id, {
     email: 'remajamesjid1945@gmail.com',
     position: 'head',
   });

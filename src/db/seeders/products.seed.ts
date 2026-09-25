@@ -52,7 +52,8 @@ export async function productsSeeder() {
   const organizationRows = await db
     .select({ id: organizations.id, code: organizations.code })
     .from(organizations)
-    .where(eq(organizations.id, 1));
+    .orderBy(organizations.id)
+    .limit(1);
   const [creator] = await db
     .select({ id: users.id })
     .from(users)

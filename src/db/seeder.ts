@@ -21,7 +21,7 @@ if (!FORCE && (env.NODE_ENV === 'staging' || env.isProduction)) {
 }
 
 export async function defaultSeeders() {
-  await reset(db, { ...auths, schemas });
+  await reset(db, { ...auths, ...schemas });
   await userSeeder();
   await organizationSeeder();
   await userOrganizationSeeder();
