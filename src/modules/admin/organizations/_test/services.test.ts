@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { TestHelpers } from 'better-auth/plugins';
+import { randomUUIDv7 } from 'bun';
 import { reset } from 'drizzle-seed';
 import { auths } from '@/db/auth-schema';
 import { organizations, userOrganizations } from '@/db/schema';
@@ -222,7 +223,7 @@ describe('Admin Organization Service', () => {
       });
 
       const result = await organizationService.updateMemberRole(
-        'user-not-found',
+        randomUUIDv7(),
         organization.id,
         ['shop_admin']
       );
@@ -251,7 +252,7 @@ describe('Admin Organization Service', () => {
       });
 
       const result = await organizationService.removeMember(
-        'user-not-found',
+        randomUUIDv7(),
         organization.id
       );
 

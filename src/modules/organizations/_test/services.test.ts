@@ -169,7 +169,7 @@ describe('Organization Service', () => {
       const { id: organizationId } = await createOrganization('Test Org');
 
       const result = await organizationService.updateMember(
-        'nonexistent-user-id',
+        randomUUIDv7(),
         organizationId,
         { position: 'staff' }
       );
